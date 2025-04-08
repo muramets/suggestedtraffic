@@ -525,7 +525,7 @@ def main():
             table_data = []
             for result in results:
                 table_data.append({
-                    'Title': f"<a href='{result['url']}' target='_blank'>{result['title']}</a>",
+                    'Title': result['title'],  # Plain text title without HTML
                     'Overall Similarity (%)': f"{result['overall_similarity']:.2f}",
                     'Tag Similarity (%)': f"{result['tag_similarity']:.2f}",
                     'Common Tags': ", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else ""),
@@ -537,7 +537,8 @@ def main():
                     'CTR (%)': result['ctr'],
                     'Views': result['views'],
                     'Avg View Duration': result['avg_view_duration'],
-                    'Watch Time (hours)': result['watch_time']
+                    'Watch Time (hours)': result['watch_time'],
+                    'Video Link': result['url']  # Add separate column for the video link
                 })
             
             table_df = pd.DataFrame(table_data)
@@ -688,15 +689,24 @@ def main():
                         format="%.2f",
                         width="medium",
                     ),
+                    "Video Link": st.column_config.LinkColumn(
+                        "Video Link",
+                        display_text="Watch Video",
+                        width="small",
+                    ),
                 }
             )
             
             # Close the container
             st.markdown('</div>', unsafe_allow_html=True)
             
+            # Create a separate HTML table with clickable links for the expander
+            html_table_df = table_df.copy()
+            html_table_df['Title'] = [f"<a href='{result['url']}' target='_blank'>{result['title']}</a>" for result in results]
+            
             # Also display the table with clickable links (hidden by default)
             with st.expander("Show table with clickable links"):
-                st.markdown(table_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+                st.markdown(html_table_df.to_html(escape=False, index=False), unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"Error processing CSV file: {e}")
