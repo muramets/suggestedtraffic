@@ -492,33 +492,27 @@ def main():
             html_table = table_df.to_html(escape=False, index=False)
             st.markdown(html_table, unsafe_allow_html=True)
             
-            # Add JavaScript for making table rows clickable and showing details
-            st.markdown("""
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                // Add click event to table rows
-                const tableRows = document.querySelectorAll('table tbody tr');
-                tableRows.forEach((row, index) => {
-                    row.style.cursor = 'pointer';
-                    row.onclick = function() {
-                        // Hide all detail sections first
-                        document.querySelectorAll('.video-details').forEach(el => {
-                            el.style.display = 'none';
-                        });
-                        // Show the clicked video's details
-                        const detailSection = document.getElementById('video-details-' + index);
-                        if (detailSection) {
-                            detailSection.style.display = 'block';
-                            detailSection.scrollIntoView({behavior: 'smooth'});
-                        }
-                    };
-                });
-            });
-            </script>
-            """, unsafe_allow_html=True)
+            # Add a selectbox to choose a video to view details
+            video_titles = [result['title'] for result in results]
+            selected_video_index = st.selectbox(
+                "Select a video to view details:",
+                range(len(video_titles)),
+                format_func=lambda i: video_titles[i]
+            )
             
-            # Create hidden detail sections for each video
-            for i, result in enumerate(results):
+            # Display details for the selected video
+            if selected_video_index is not None:
+                result = results[selected_video_index]
+                
+                st.subheader(f"Details for: {result['title']}")
+                
+                # Display metrics in columns
+                cols = st.columns(4)
+                cols[0].metric("Overall Similarity", f"{result['overall_similarity']:.2f}%")
+                cols[1].metric("Title Similarity", f"{result['title_similarity']:.2f}%")
+                cols[2].metric("Description Similarity", f"{result['description_similarity']:.2f}%")
+                cols[3].metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
+                
                 # Function to highlight matching words
                 def highlight_matching_words(text, common_words):
                     if not text or not common_words:
@@ -531,12 +525,13 @@ def main():
                     
                     return text
                 
-                # Highlight matching words in description and tags
+                # Highlight matching words in description
                 highlighted_description = highlight_matching_words(
                     result['description'], 
                     result['common_description_words']
                 )
                 
+                # Highlight matching tags
                 highlighted_tags = []
                 for tag in result['tags']:
                     if tag.lower().strip() in [t.lower().strip() for t in result['common_tags']]:
@@ -544,53 +539,12 @@ def main():
                     else:
                         highlighted_tags.append(tag)
                 
-                # Create a hidden div for this video's details
-                st.markdown(f"""
-                <div id="video-details-{i}" class="video-details" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
-                    <h3>{result['title']}</h3>
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
-                        <div style="flex: 1; min-width: 120px;">
-                            <div style="font-weight: bold;">Overall Similarity</div>
-                            <div>{result['overall_similarity']:.2f}%</div>
-                        </div>
-                        <div style="flex: 1; min-width: 120px;">
-                            <div style="font-weight: bold;">Title Similarity</div>
-                            <div>{result['title_similarity']:.2f}%</div>
-                        </div>
-                        <div style="flex: 1; min-width: 120px;">
-                            <div style="font-weight: bold;">Description Similarity</div>
-                            <div>{result['description_similarity']:.2f}%</div>
-                        </div>
-                        <div style="flex: 1; min-width: 120px;">
-                            <div style="font-weight: bold;">Tag Similarity</div>
-                            <div>{result['tag_similarity']:.2f}%</div>
-                        </div>
-                    </div>
-                    
-                    <details>
-                        <summary style="cursor: pointer; padding: 5px; background-color: #f0f0f0;">Description</summary>
-                        <div style="padding: 10px; border: 1px solid #eee; margin-top: 5px;">
-                            {highlighted_description}
-                        </div>
-                    </details>
-                    
-                    <details style="margin-top: 10px;">
-                        <summary style="cursor: pointer; padding: 5px; background-color: #f0f0f0;">Tags</summary>
-                        <div style="padding: 10px; border: 1px solid #eee; margin-top: 5px;">
-                            {', '.join(highlighted_tags)}
-                        </div>
-                    </details>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Allow downloading results as CSV
-            csv = table_df.to_csv(index=False)
-            st.download_button(
-                label="Download results as CSV",
-                data=csv,
-                file_name="youtube_analysis_results.csv",
-                mime="text/csv"
-            )
+                # Create expandable sections for description and tags
+                with st.expander("Description"):
+                    st.markdown(highlighted_description, unsafe_allow_html=True)
+                
+                with st.expander("Tags"):
+                    st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"Error processing CSV file: {e}")
