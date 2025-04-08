@@ -589,16 +589,15 @@ def main():
             # Create a container with fixed height for scrolling with fixed header
             st.markdown('<div class="table-container">', unsafe_allow_html=True)
             
-            # Display the DataFrame with sortable columns and clickable title
+            # Display the DataFrame with sortable columns
+            # Using a different approach for clickable titles since LinkColumn might not be supported
             st.dataframe(
                 display_df,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "Title": st.column_config.LinkColumn(
+                    "Title": st.column_config.Column(
                         "Title",
-                        display_text="Title",
-                        url="Title URL",  # Use the URL from the Title URL column
                         width="large",
                     ),
                     "Title URL": st.column_config.Column(  # Hide this column as it's just for the URL
@@ -656,7 +655,13 @@ def main():
             # Close the container
             st.markdown('</div>', unsafe_allow_html=True)
             
+            # Create a section with clickable links below the table
+            st.subheader("Video Links")
+            for i, result in enumerate(results):
+                st.markdown(f"[{result['title']}]({result['url']})", unsafe_allow_html=False)
+            
             # Add a selectbox to choose a video to view details
+            st.subheader("Video Details")
             video_titles = [result['title'] for result in results]
             selected_video_index = st.selectbox(
                 "Select a video to view details:",
