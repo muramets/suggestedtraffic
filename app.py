@@ -74,7 +74,7 @@ def get_api_key():
             return api_key
         else:
             # Fallback to hardcoded key (not recommended for production)
-            return "AIzaSyDCRnjNNuvzmp45rYZiGae7q6RggG4d3NI"  # Replace this with your actual API key for local testing
+            return "YOUR_API_KEY_HERE"  # Replace this with your actual API key for local testing
 
 # Initialize YouTube API client
 @st.cache_resource
