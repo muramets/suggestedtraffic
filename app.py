@@ -632,42 +632,44 @@ def main():
             # Create a container with fixed height for scrolling with fixed header
             st.markdown('<div class="table-container">', unsafe_allow_html=True)
             
-            # Convert DataFrame to HTML to allow clickable links in the title column
-            html_table = table_df.to_html(escape=False, index=False)
+            # Create a DataFrame for display with proper data types for sorting
+            # and add a Video Link column
+            display_df = pd.DataFrame()
             
-            # Display the HTML table with clickable titles
-            st.markdown(html_table, unsafe_allow_html=True)
+            # Copy all columns except the HTML Title
+            for col in table_df.columns:
+                if col != 'Title':
+                    display_df[col] = table_df[col]
             
-            # Also display a sortable version (hidden by default)
-            with st.expander("Show sortable table (titles not clickable)"):
-                # Prepare DataFrame for display with proper data types for sorting
-                display_df = table_df.copy()
-                
-                # Convert numeric columns to proper numeric types for sorting
-                numeric_columns = [
-                    'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
-                    'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
-                    'Avg View Duration', 'Watch Time (hours)'
-                ]
-                
-                for col in numeric_columns:
-                    if col in display_df.columns:
-                        # Extract numeric values from string columns (remove % and other non-numeric characters)
-                        if display_df[col].dtype == 'object':
-                            display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
-                        else:
-                            display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
-                
-                # Display the DataFrame with sortable columns
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Title": st.column_config.Column(
-                            "Title",
-                            width="large",
-                        ),
+            # Add plain text Title and Video Link columns
+            display_df['Title'] = [result['title'] for result in results]
+            display_df['Video Link'] = [result['url'] for result in results]
+            
+            # Convert numeric columns to proper numeric types for sorting
+            numeric_columns = [
+                'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
+                'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
+                'Avg View Duration', 'Watch Time (hours)'
+            ]
+            
+            for col in numeric_columns:
+                if col in display_df.columns:
+                    # Extract numeric values from string columns (remove % and other non-numeric characters)
+                    if display_df[col].dtype == 'object':
+                        display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
+                    else:
+                        display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+            
+            # Display the DataFrame with sortable columns
+            st.dataframe(
+                display_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.Column(
+                        "Title",
+                        width="large",
+                    ),
                     "Overall Similarity (%)": st.column_config.NumberColumn(
                         "Overall Similarity (%)",
                         format="%.2f%%",
@@ -711,6 +713,10 @@ def main():
                         "Watch Time (hours)",
                         format="%.2f",
                         width="medium",
+                    ),
+                    "Video Link": st.column_config.LinkColumn(
+                        "Video Link",
+                        width="small",
                     ),
                 }
             )
