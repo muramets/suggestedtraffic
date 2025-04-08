@@ -492,51 +492,96 @@ def main():
             html_table = table_df.to_html(escape=False, index=False)
             st.markdown(html_table, unsafe_allow_html=True)
             
-            # Display individual video cards for better readability
-            st.subheader("Detailed Video Analysis")
+            # Add JavaScript for making table rows clickable and showing details
+            st.markdown("""
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Add click event to table rows
+                const tableRows = document.querySelectorAll('table tbody tr');
+                tableRows.forEach((row, index) => {
+                    row.style.cursor = 'pointer';
+                    row.onclick = function() {
+                        // Hide all detail sections first
+                        document.querySelectorAll('.video-details').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                        // Show the clicked video's details
+                        const detailSection = document.getElementById('video-details-' + index);
+                        if (detailSection) {
+                            detailSection.style.display = 'block';
+                            detailSection.scrollIntoView({behavior: 'smooth'});
+                        }
+                    };
+                });
+            });
+            </script>
+            """, unsafe_allow_html=True)
             
-            for result in results:
-                with st.container():
-                    st.markdown(f"### [{result['title']}]({result['url']})")
+            # Create hidden detail sections for each video
+            for i, result in enumerate(results):
+                # Function to highlight matching words
+                def highlight_matching_words(text, common_words):
+                    if not text or not common_words:
+                        return text
                     
-                    metrics_cols = st.columns(4)
-                    with metrics_cols[0]:
-                        st.metric("Overall Similarity", f"{result['overall_similarity']:.2f}%")
-                    with metrics_cols[1]:
-                        st.metric("Title Similarity", f"{result['title_similarity']:.2f}%")
-                    with metrics_cols[2]:
-                        st.metric("Description Similarity", f"{result['description_similarity']:.2f}%")
-                    with metrics_cols[3]:
-                        st.metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
+                    for word in common_words:
+                        # Case-insensitive replacement with green highlight
+                        pattern = re.compile(re.escape(word), re.IGNORECASE)
+                        text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
                     
-                    traffic_cols = st.columns(4)
-                    with traffic_cols[0]:
-                        st.metric("Impressions", result['impressions'])
-                    with traffic_cols[1]:
-                        st.metric("CTR", f"{result['ctr']}%")
-                    with traffic_cols[2]:
-                        st.metric("Views", result['views'])
-                    with traffic_cols[3]:
-                        st.metric("Watch Time", f"{result['watch_time']} hours")
+                    return text
+                
+                # Highlight matching words in description and tags
+                highlighted_description = highlight_matching_words(
+                    result['description'], 
+                    result['common_description_words']
+                )
+                
+                highlighted_tags = []
+                for tag in result['tags']:
+                    if tag.lower().strip() in [t.lower().strip() for t in result['common_tags']]:
+                        highlighted_tags.append(f'<span style="color: green; font-weight: bold;">{tag}</span>')
+                    else:
+                        highlighted_tags.append(tag)
+                
+                # Create a hidden div for this video's details
+                st.markdown(f"""
+                <div id="video-details-{i}" class="video-details" style="display: none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+                    <h3>{result['title']}</h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                        <div style="flex: 1; min-width: 120px;">
+                            <div style="font-weight: bold;">Overall Similarity</div>
+                            <div>{result['overall_similarity']:.2f}%</div>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <div style="font-weight: bold;">Title Similarity</div>
+                            <div>{result['title_similarity']:.2f}%</div>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <div style="font-weight: bold;">Description Similarity</div>
+                            <div>{result['description_similarity']:.2f}%</div>
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <div style="font-weight: bold;">Tag Similarity</div>
+                            <div>{result['tag_similarity']:.2f}%</div>
+                        </div>
+                    </div>
                     
-                    # Expandable sections
-                    col1, col2 = st.columns(2)
+                    <details>
+                        <summary style="cursor: pointer; padding: 5px; background-color: #f0f0f0;">Description</summary>
+                        <div style="padding: 10px; border: 1px solid #eee; margin-top: 5px;">
+                            {highlighted_description}
+                        </div>
+                    </details>
                     
-                    with col1:
-                        with st.expander("Common Words"):
-                            st.write("**Title Words:**", ", ".join(result['common_title_words']))
-                            st.write("**Description Words:**", ", ".join(result['common_description_words']))
-                            st.write("**Tags:**", ", ".join(result['common_tags']))
-                    
-                    with col2:
-                        with st.expander("Video Details"):
-                            st.write("**Average View Duration:**", result['avg_view_duration'])
-                            with st.expander("Full Description"):
-                                st.write(result['description'])
-                            with st.expander("All Tags"):
-                                st.write(", ".join(result['tags']) if result['tags'] else "No tags")
-                    
-                    st.markdown("---")
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; padding: 5px; background-color: #f0f0f0;">Tags</summary>
+                        <div style="padding: 10px; border: 1px solid #eee; margin-top: 5px;">
+                            {', '.join(highlighted_tags)}
+                        </div>
+                    </details>
+                </div>
+                """, unsafe_allow_html=True)
             
             # Allow downloading results as CSV
             csv = table_df.to_csv(index=False)
