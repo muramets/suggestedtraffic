@@ -323,8 +323,6 @@ def get_video_details(youtube, video_id):
 def main():
     # Remove duplicate set_page_config as it's already called at the top of the file
     
-    st.markdown("<h1 class='main-header'>YouTube Video Traffic Analysis</h1>", unsafe_allow_html=True)
-    
     # Create sidebar for API key input
     with st.sidebar:
         st.header("YouTube API Configuration")
@@ -633,16 +631,18 @@ def main():
             st.markdown('<div class="table-container">', unsafe_allow_html=True)
             
             # Create a DataFrame for display with proper data types for sorting
-            # and add a Video Link column
+            # and add a Video Link column with Title as the first column
             display_df = pd.DataFrame()
             
-            # Copy all columns except the HTML Title
+            # Add Title as the first column
+            display_df['Title'] = [result['title'] for result in results]
+            
+            # Add all other columns except the HTML Title
             for col in table_df.columns:
                 if col != 'Title':
                     display_df[col] = table_df[col]
             
-            # Add plain text Title and Video Link columns
-            display_df['Title'] = [result['title'] for result in results]
+            # Add Video Link as the last column
             display_df['Video Link'] = [result['url'] for result in results]
             
             # Convert numeric columns to proper numeric types for sorting
