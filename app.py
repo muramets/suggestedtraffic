@@ -52,6 +52,9 @@ st.markdown("""
         text-align: left;
         padding: 6px;
         font-size: 0.9rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
     }
     td {
         padding: 6px;
@@ -80,12 +83,20 @@ st.markdown("""
     h3 {
         font-size: 1.2rem;
     }
+    /* Fixed header for Streamlit DataFrames */
+    .stDataFrame thead tr th {
+        position: sticky !important;
+        top: 0;
+        background-color: #1E88E5 !important;
+        color: white !important;
+        z-index: 999 !important;
+    }
     </style>
     <h1 class="main-header">YouTube Video Traffic Analysis</h1>
     """, unsafe_allow_html=True)
 
-# Initialize YouTube API client
-@st.cache_resource
+# Initialize YouTube API client with caching to prevent unnecessary API calls
+@st.cache_resource(ttl=3600)  # Cache for 1 hour
 def get_youtube_client(api_key):
     """Create a YouTube API client with the provided API key."""
     if not api_key or api_key.strip() == "" or api_key == "YOUR_API_KEY_HERE":
@@ -200,9 +211,10 @@ def calculate_overall_similarity(title_sim, desc_sim, tag_sim):
     # Simple average of all similarities
     return (title_sim + desc_sim + tag_sim) / 3
 
-# Function to get video details from YouTube API with rate limit handling
+# Cache video details to prevent unnecessary API calls
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_video_details(youtube, video_id):
-    """Get video details from YouTube API with retry logic for rate limits."""
+    """Get video details from YouTube API with retry logic for various errors and caching."""
     if not youtube:
         st.error("YouTube API client not initialized. Please enter a valid API key.")
         return None
@@ -241,19 +253,31 @@ def get_video_details(youtube, video_id):
             return video_details
         
         except HttpError as e:
+            retry_count += 1
+            wait_time = 2**retry_count
+            
+            # Handle different types of errors
             if e.resp.status in [403, 429]:  # Rate limit or quota exceeded
-                retry_count += 1
                 if retry_count < max_retries:
-                    st.warning(f"YouTube API rate limit reached. Retrying in {2**retry_count} seconds...")
-                    time.sleep(2**retry_count)  # Exponential backoff
+                    st.warning(f"YouTube API rate limit reached. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)  # Exponential backoff
                 else:
                     st.error("YouTube API quota exceeded. Please try again later or use a different API key.")
                     return None
+            elif e.resp.status == 500:  # Internal server error
+                if retry_count < max_retries:
+                    st.warning(f"YouTube API internal server error. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)  # Exponential backoff
+                else:
+                    st.error("YouTube servers are experiencing issues. This is not a problem with your request or API key. Please try again later.")
+                    return None
             else:
-                st.error(f"YouTube API error: {e}")
+                error_message = f"YouTube API error: {e}"
+                st.error(error_message)
                 return None
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            error_message = f"An error occurred: {str(e)}"
+            st.error(error_message)
             return None
 
 # Main function
@@ -542,9 +566,18 @@ def main():
                 with st.expander("Tags"):
                     st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
             
-            # Convert DataFrame to HTML with clickable links and buttons
-            html_table = table_df.to_html(escape=False, index=False)
-            st.markdown(html_table, unsafe_allow_html=True)
+            # Display the DataFrame with sortable columns
+            st.dataframe(
+                table_df.style.format({
+                    'Overall Similarity (%)': '{:.2f}',
+                    'Tag Similarity (%)': '{:.2f}',
+                    'Title Similarity (%)': '{:.2f}',
+                    'Description Similarity (%)': '{:.2f}'
+                }),
+                use_container_width=True,
+                height=600,
+                hide_index=True
+            )
             
         except Exception as e:
             st.error(f"Error processing CSV file: {e}")
