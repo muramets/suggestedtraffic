@@ -18,6 +18,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Disable automatic rerunning
+st.cache_data(ttl=None)
+def get_session_state():
+    """Get session state to prevent auto-refresh."""
+    return {}
+
+# Initialize session state
+get_session_state()
+
 # Download NLTK resources
 @st.cache_resource
 def download_nltk_resources():
@@ -54,7 +63,7 @@ st.markdown("""
         font-size: 0.9rem;
         position: sticky;
         top: 0;
-        z-index: 10;
+        z-index: 100;
     }
     td {
         padding: 6px;
@@ -83,20 +92,25 @@ st.markdown("""
     h3 {
         font-size: 1.2rem;
     }
-    /* Fixed header for Streamlit DataFrames */
-    .stDataFrame thead tr th {
-        position: sticky !important;
+    /* Fixed header styles */
+    .fixed-header {
+        position: sticky;
         top: 0;
-        background-color: #1E88E5 !important;
-        color: white !important;
-        z-index: 999 !important;
+        background-color: white;
+        z-index: 999;
+        border-bottom: 1px solid #ddd;
+    }
+    /* Make sure the table container has a fixed height to enable scrolling */
+    .table-container {
+        max-height: 600px;
+        overflow-y: auto;
     }
     </style>
     <h1 class="main-header">YouTube Video Traffic Analysis</h1>
     """, unsafe_allow_html=True)
 
-# Initialize YouTube API client with caching to prevent unnecessary API calls
-@st.cache_resource(ttl=3600)  # Cache for 1 hour
+# Initialize YouTube API client
+@st.cache_resource
 def get_youtube_client(api_key):
     """Create a YouTube API client with the provided API key."""
     if not api_key or api_key.strip() == "" or api_key == "YOUR_API_KEY_HERE":
@@ -211,15 +225,14 @@ def calculate_overall_similarity(title_sim, desc_sim, tag_sim):
     # Simple average of all similarities
     return (title_sim + desc_sim + tag_sim) / 3
 
-# Cache video details to prevent unnecessary API calls
-@st.cache_data(ttl=3600)  # Cache for 1 hour
+# Function to get video details from YouTube API with rate limit handling
 def get_video_details(youtube, video_id):
-    """Get video details from YouTube API with retry logic for various errors and caching."""
+    """Get video details from YouTube API with retry logic for rate limits and other errors."""
     if not youtube:
         st.error("YouTube API client not initialized. Please enter a valid API key.")
         return None
         
-    max_retries = 3
+    max_retries = 5  # Increased from 3 to 5
     retry_count = 0
     
     while retry_count < max_retries:
@@ -254,34 +267,62 @@ def get_video_details(youtube, video_id):
         
         except HttpError as e:
             retry_count += 1
-            wait_time = 2**retry_count
+            wait_time = 2**retry_count  # Exponential backoff
             
-            # Handle different types of errors
+            # Handle different error codes with specific messages
             if e.resp.status in [403, 429]:  # Rate limit or quota exceeded
                 if retry_count < max_retries:
                     st.warning(f"YouTube API rate limit reached. Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)  # Exponential backoff
+                    time.sleep(wait_time)
                 else:
                     st.error("YouTube API quota exceeded. Please try again later or use a different API key.")
                     return None
             elif e.resp.status == 500:  # Internal server error
                 if retry_count < max_retries:
-                    st.warning(f"YouTube API internal server error. Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)  # Exponential backoff
+                    st.warning(f"YouTube API internal error. Retrying in {wait_time} seconds... ({retry_count}/{max_retries})")
+                    time.sleep(wait_time)
                 else:
-                    st.error("YouTube servers are experiencing issues. This is not a problem with your request or API key. Please try again later.")
+                    st.error("YouTube API is experiencing internal issues. This is not a problem with your request. Please try again later.")
+                    st.info("If this error persists, you may want to try a different API key or check the YouTube API status.")
                     return None
-            else:
-                error_message = f"YouTube API error: {e}"
-                st.error(error_message)
+            elif e.resp.status == 404:  # Not found
+                st.error(f"Video with ID {video_id} not found. It may have been deleted or made private.")
                 return None
+            else:
+                error_message = str(e)
+                st.error(f"YouTube API error: {error_message}")
+                
+                # Provide more user-friendly explanations for common errors
+                if "backendError" in error_message:
+                    st.info("This is a temporary issue with YouTube's servers. Please try again in a few minutes.")
+                elif "quotaExceeded" in error_message:
+                    st.info("Your YouTube API quota has been exceeded. Please try again tomorrow or use a different API key.")
+                
+                if retry_count < max_retries:
+                    st.warning(f"Retrying in {wait_time} seconds... ({retry_count}/{max_retries})")
+                    time.sleep(wait_time)
+                else:
+                    return None
         except Exception as e:
-            error_message = f"An error occurred: {str(e)}"
-            st.error(error_message)
-            return None
+            error_message = str(e)
+            st.error(f"An error occurred: {error_message}")
+            
+            # Try to provide more helpful context for the error
+            if "socket" in error_message.lower() or "timeout" in error_message.lower() or "connection" in error_message.lower():
+                st.info("This appears to be a network connectivity issue. Please check your internet connection and try again.")
+            
+            retry_count += 1
+            if retry_count < max_retries:
+                wait_time = 2**retry_count
+                st.warning(f"Retrying in {wait_time} seconds... ({retry_count}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                return None
 
 # Main function
 def main():
+    # Remove duplicate set_page_config as it's already called at the top of the file
+    
     st.markdown("<h1 class='main-header'>YouTube Video Traffic Analysis</h1>", unsafe_allow_html=True)
     
     # Create sidebar for API key input
@@ -305,6 +346,9 @@ def main():
             4. Create an API key
             5. Enter the key in the field above
             """)
+        
+        # Add a note about API usage
+        st.info("Note: This application makes API calls only when you submit data, not automatically.")
     
     # Initialize YouTube client with the provided API key
     youtube = get_youtube_client(api_key)
@@ -498,8 +542,8 @@ def main():
             
             table_df = pd.DataFrame(table_data)
             
-            # Display horizontally scrollable table
-            st.subheader("Horizontally Scrollable Analysis Table")
+            # Display horizontally scrollable table with sortable columns
+            st.subheader("Analysis Table (Click column headers to sort)")
             st.markdown(
                 """
                 <style>
@@ -566,18 +610,93 @@ def main():
                 with st.expander("Tags"):
                     st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
             
+            # Prepare DataFrame for display with proper data types for sorting
+            display_df = table_df.copy()
+            
+            # Convert numeric columns to proper numeric types for sorting
+            numeric_columns = [
+                'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
+                'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
+                'Avg View Duration', 'Watch Time (hours)'
+            ]
+            
+            for col in numeric_columns:
+                if col in display_df.columns:
+                    # Extract numeric values from string columns (remove % and other non-numeric characters)
+                    if display_df[col].dtype == 'object':
+                        display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
+                    else:
+                        display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+            
+            # Keep the Title column with HTML links
+            title_column = table_df['Title']
+            
+            # Create a container with fixed height for scrolling with fixed header
+            st.markdown('<div class="table-container">', unsafe_allow_html=True)
+            
             # Display the DataFrame with sortable columns
             st.dataframe(
-                table_df.style.format({
-                    'Overall Similarity (%)': '{:.2f}',
-                    'Tag Similarity (%)': '{:.2f}',
-                    'Title Similarity (%)': '{:.2f}',
-                    'Description Similarity (%)': '{:.2f}'
-                }),
+                display_df,
                 use_container_width=True,
-                height=600,
-                hide_index=True
+                hide_index=True,
+                column_config={
+                    "Title": st.column_config.Column(
+                        "Title",
+                        width="large",
+                    ),
+                    "Overall Similarity (%)": st.column_config.NumberColumn(
+                        "Overall Similarity (%)",
+                        format="%.2f%%",
+                        width="medium",
+                    ),
+                    "Tag Similarity (%)": st.column_config.NumberColumn(
+                        "Tag Similarity (%)",
+                        format="%.2f%%",
+                        width="medium",
+                    ),
+                    "Title Similarity (%)": st.column_config.NumberColumn(
+                        "Title Similarity (%)",
+                        format="%.2f%%",
+                        width="medium",
+                    ),
+                    "Description Similarity (%)": st.column_config.NumberColumn(
+                        "Description Similarity (%)",
+                        format="%.2f%%",
+                        width="medium",
+                    ),
+                    "Impressions": st.column_config.NumberColumn(
+                        "Impressions",
+                        format="%d",
+                        width="medium",
+                    ),
+                    "CTR (%)": st.column_config.NumberColumn(
+                        "CTR (%)",
+                        format="%.2f%%",
+                        width="small",
+                    ),
+                    "Views": st.column_config.NumberColumn(
+                        "Views",
+                        format="%d",
+                        width="small",
+                    ),
+                    "Avg View Duration": st.column_config.NumberColumn(
+                        "Avg View Duration",
+                        width="medium",
+                    ),
+                    "Watch Time (hours)": st.column_config.NumberColumn(
+                        "Watch Time (hours)",
+                        format="%.2f",
+                        width="medium",
+                    ),
+                }
             )
+            
+            # Close the container
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Also display the table with clickable links (hidden by default)
+            with st.expander("Show table with clickable links"):
+                st.markdown(table_df.to_html(escape=False, index=False), unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"Error processing CSV file: {e}")
