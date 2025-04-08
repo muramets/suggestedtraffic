@@ -517,12 +517,54 @@ def main():
             # Sort results by overall similarity (descending)
             results.sort(key=lambda x: x['overall_similarity'], reverse=True)
             
+            # Add a selectbox to choose a video to view details
+            st.subheader("Video Details")
+            video_titles = [result['title'] for result in results]
+            selected_video_index = st.selectbox(
+                "Select a video to view details:",
+                range(len(video_titles)),
+                format_func=lambda i: video_titles[i]
+            )
+            
+            # Display details for the selected video
+            if selected_video_index is not None:
+                result = results[selected_video_index]
+                
+                st.subheader(f"Details for: {result['title']}")
+                
+                # Display metrics in columns
+                cols = st.columns(4)
+                cols[0].metric("Overall Similarity", f"{result['overall_similarity']:.2f}%")
+                cols[1].metric("Title Similarity", f"{result['title_similarity']:.2f}%")
+                cols[2].metric("Description Similarity", f"{result['description_similarity']:.2f}%")
+                cols[3].metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
+                
+                # Highlight matching words in description
+                highlighted_description = highlight_matching_words(
+                    result['description'], 
+                    result['common_description_words']
+                )
+                
+                # Highlight matching tags
+                highlighted_tags = []
+                for tag in result['tags']:
+                    if tag.lower().strip() in [t.lower().strip() for t in result['common_tags']]:
+                        highlighted_tags.append(f'<span style="color: green; font-weight: bold;">{tag}</span>')
+                    else:
+                        highlighted_tags.append(tag)
+                
+                # Create expandable sections for description and tags
+                with st.expander("Description"):
+                    st.markdown(highlighted_description, unsafe_allow_html=True)
+                
+                with st.expander("Tags"):
+                    st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
+            
             # Create a DataFrame for the horizontally scrollable table
             table_data = []
             for result in results:
                 table_data.append({
-                    'Title': result['title'],  # Title will be made clickable with LinkColumn
-                    'Title URL': result['url'],  # URL for the title (will be hidden in display)
+                    'Title': f"<a href='{result['url']}' target='_blank'>{result['title']}</a>",  # Make title clickable with HTML
                     'Overall Similarity (%)': f"{result['overall_similarity']:.2f}",
                     'Tag Similarity (%)': f"{result['tag_similarity']:.2f}",
                     'Common Tags': ", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else ""),
@@ -589,22 +631,42 @@ def main():
             # Create a container with fixed height for scrolling with fixed header
             st.markdown('<div class="table-container">', unsafe_allow_html=True)
             
-            # Display the DataFrame with sortable columns
-            # Using a different approach for clickable titles since LinkColumn might not be supported
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Title": st.column_config.Column(
-                        "Title",
-                        width="large",
-                    ),
-                    "Title URL": st.column_config.Column(  # Hide this column as it's just for the URL
-                        "Title URL",
-                        width="large",
-                        disabled=True,
-                    ),
+            # Convert DataFrame to HTML to allow clickable links in the title column
+            html_table = table_df.to_html(escape=False, index=False)
+            
+            # Display the HTML table with clickable titles
+            st.markdown(html_table, unsafe_allow_html=True)
+            
+            # Also display a sortable version (hidden by default)
+            with st.expander("Show sortable table (titles not clickable)"):
+                # Prepare DataFrame for display with proper data types for sorting
+                display_df = table_df.copy()
+                
+                # Convert numeric columns to proper numeric types for sorting
+                numeric_columns = [
+                    'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
+                    'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
+                    'Avg View Duration', 'Watch Time (hours)'
+                ]
+                
+                for col in numeric_columns:
+                    if col in display_df.columns:
+                        # Extract numeric values from string columns (remove % and other non-numeric characters)
+                        if display_df[col].dtype == 'object':
+                            display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
+                        else:
+                            display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+                
+                # Display the DataFrame with sortable columns
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Title": st.column_config.Column(
+                            "Title",
+                            width="large",
+                        ),
                     "Overall Similarity (%)": st.column_config.NumberColumn(
                         "Overall Similarity (%)",
                         format="%.2f%%",
@@ -655,19 +717,6 @@ def main():
             # Close the container
             st.markdown('</div>', unsafe_allow_html=True)
             
-            # Create a section with clickable links below the table
-            st.subheader("Video Links")
-            for i, result in enumerate(results):
-                st.markdown(f"[{result['title']}]({result['url']})", unsafe_allow_html=False)
-            
-            # Add a selectbox to choose a video to view details
-            st.subheader("Video Details")
-            video_titles = [result['title'] for result in results]
-            selected_video_index = st.selectbox(
-                "Select a video to view details:",
-                range(len(video_titles)),
-                format_func=lambda i: video_titles[i]
-            )
             
             # Display details for the selected video
             if selected_video_index is not None:
