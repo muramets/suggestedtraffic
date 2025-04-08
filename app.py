@@ -34,7 +34,7 @@ download_nltk_resources()
 st.markdown("""
     <style>
     .main-header {
-        font-size: 2.5rem;
+        font-size: 1.8rem;
         color: #1E88E5;
     }
     .stDataFrame {
@@ -44,45 +44,49 @@ st.markdown("""
     table {
         width: 100%;
         min-width: 1200px;
+        font-size: 0.9rem;
     }
     th {
         background-color: #1E88E5;
         color: white;
         text-align: left;
-        padding: 8px;
+        padding: 6px;
+        font-size: 0.9rem;
     }
     td {
-        padding: 8px;
+        padding: 6px;
         border-bottom: 1px solid #ddd;
+        font-size: 0.9rem;
     }
     tr:hover {
         background-color: #f5f5f5;
+    }
+    .streamlit-expanderHeader {
+        font-size: 0.9rem;
+    }
+    p, div, span, li {
+        font-size: 0.95rem;
+    }
+    h1 {
+        font-size: 1.8rem;
+    }
+    h2 {
+        font-size: 1.5rem;
+    }
+    h3 {
+        font-size: 1.2rem;
     }
     </style>
     <h1 class="main-header">YouTube Video Traffic Analysis</h1>
     """, unsafe_allow_html=True)
 
-# Get YouTube API Key from Streamlit secrets or environment variable
-def get_api_key():
-    # First try to get from Streamlit secrets
-    try:
-        return st.secrets["API_KEY"]
-    except:
-        # If not in secrets, try environment variable
-        api_key = os.environ.get("YOUTUBE_API_KEY")
-        if api_key:
-            return api_key
-        else:
-            # Fallback to hardcoded key (not recommended for production)
-            return "YOUR_API_KEY_HERE"  # Replace this with your actual API key for local testing
-
 # Initialize YouTube API client
 @st.cache_resource
-def get_youtube_client():
-    api_key = get_api_key()
+def get_youtube_client(api_key):
+    """Create a YouTube API client with the provided API key."""
+    if not api_key or api_key.strip() == "" or api_key == "YOUR_API_KEY_HERE":
+        return None
     return build('youtube', 'v3', developerKey=api_key)
-
-youtube = get_youtube_client()
 
 # Function to extract video ID from YouTube URL
 def extract_video_id(url):
@@ -108,57 +112,7 @@ def extract_id_from_csv_format(id_string):
         return match.group(1)
     return None
 
-# Function to get video details from YouTube API with rate limit handling
-def get_video_details(video_id):
-    """Get video details from YouTube API with retry logic for rate limits."""
-    max_retries = 3
-    retry_count = 0
-    
-    while retry_count < max_retries:
-        try:
-            # Get video details
-            video_response = youtube.videos().list(
-                part='snippet,statistics,contentDetails',
-                id=video_id
-            ).execute()
-            
-            if not video_response['items']:
-                return None
-            
-            video_data = video_response['items'][0]
-            snippet = video_data['snippet']
-            
-            # Get video tags (if available)
-            tags = snippet.get('tags', [])
-            
-            # Create a dictionary with video details
-            video_details = {
-                'id': video_id,
-                'title': snippet['title'],
-                'description': snippet['description'],
-                'tags': tags,
-                'thumbnail': snippet.get('thumbnails', {}).get('high', {}).get('url', ''),
-                'channel_title': snippet['channelTitle'],
-                'published_at': snippet['publishedAt']
-            }
-            
-            return video_details
-        
-        except HttpError as e:
-            if e.resp.status in [403, 429]:  # Rate limit or quota exceeded
-                retry_count += 1
-                if retry_count < max_retries:
-                    st.warning(f"YouTube API rate limit reached. Retrying in {2**retry_count} seconds...")
-                    time.sleep(2**retry_count)  # Exponential backoff
-                else:
-                    st.error("YouTube API quota exceeded. Please try again later or use a different API key.")
-                    return None
-            else:
-                st.error(f"YouTube API error: {e}")
-                return None
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            return None
+# No content to replace - removing the duplicate function
 
 # Function to preprocess text with support for Russian and English
 def preprocess_text(text):
@@ -243,9 +197,90 @@ def calculate_overall_similarity(title_sim, desc_sim, tag_sim):
     # Simple average of all similarities
     return (title_sim + desc_sim + tag_sim) / 3
 
+# Function to get video details from YouTube API with rate limit handling
+def get_video_details(youtube, video_id):
+    """Get video details from YouTube API with retry logic for rate limits."""
+    if not youtube:
+        st.error("YouTube API client not initialized. Please enter a valid API key.")
+        return None
+        
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            # Get video details
+            video_response = youtube.videos().list(
+                part='snippet,statistics,contentDetails',
+                id=video_id
+            ).execute()
+            
+            if not video_response['items']:
+                return None
+            
+            video_data = video_response['items'][0]
+            snippet = video_data['snippet']
+            
+            # Get video tags (if available)
+            tags = snippet.get('tags', [])
+            
+            # Create a dictionary with video details
+            video_details = {
+                'id': video_id,
+                'title': snippet['title'],
+                'description': snippet['description'],
+                'tags': tags,
+                'thumbnail': snippet.get('thumbnails', {}).get('high', {}).get('url', ''),
+                'channel_title': snippet['channelTitle'],
+                'published_at': snippet['publishedAt']
+            }
+            
+            return video_details
+        
+        except HttpError as e:
+            if e.resp.status in [403, 429]:  # Rate limit or quota exceeded
+                retry_count += 1
+                if retry_count < max_retries:
+                    st.warning(f"YouTube API rate limit reached. Retrying in {2**retry_count} seconds...")
+                    time.sleep(2**retry_count)  # Exponential backoff
+                else:
+                    st.error("YouTube API quota exceeded. Please try again later or use a different API key.")
+                    return None
+            else:
+                st.error(f"YouTube API error: {e}")
+                return None
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+            return None
+
 # Main function
 def main():
-    st.title("YouTube Video Traffic Analysis")
+    st.markdown("<h1 class='main-header'>YouTube Video Traffic Analysis</h1>", unsafe_allow_html=True)
+    
+    # Create sidebar for API key input
+    with st.sidebar:
+        st.header("YouTube API Configuration")
+        api_key = st.text_input(
+            "Enter your YouTube API Key",
+            type="password",
+            help="Get your API key from the Google Cloud Console"
+        )
+        
+        if api_key:
+            st.success("API key provided! You can now analyze videos.")
+        else:
+            st.warning("Please enter your YouTube API key to use this application.")
+            st.markdown("""
+            ### How to get a YouTube API Key:
+            1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+            2. Create a new project or select an existing one
+            3. Enable the YouTube Data API v3
+            4. Create an API key
+            5. Enter the key in the field above
+            """)
+    
+    # Initialize YouTube client with the provided API key
+    youtube = get_youtube_client(api_key)
     
     # Step 1: Get YouTube video URL
     st.header("Step 1: Enter YouTube Video URL")
@@ -254,6 +289,26 @@ def main():
     # Step 2: Upload CSV file
     st.header("Step 2: Upload CSV with Suggested Traffic")
     uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+    
+    # Check if all inputs are provided
+    if not api_key or api_key.strip() == "" or api_key == "YOUR_API_KEY_HERE":
+        st.error("Please enter a valid YouTube API key in the sidebar to continue.")
+        st.info("The application requires a valid YouTube API key to function.")
+        return
+    
+    # Test the API key with a simple request
+    try:
+        with st.spinner("Validating API key..."):
+            test_response = youtube.channels().list(
+                part="snippet",
+                id="UC_x5XG1OV2P6uZZ5FSM9Ttw"  # Google Developers channel
+            ).execute()
+            st.success("API key is valid!")
+    except HttpError as e:
+        if "API key not valid" in str(e):
+            st.error("The API key you entered is not valid. Please check and try again.")
+            return
+        # Other errors are ok - might be quota or permission issues that won't affect basic functionality
     
     if video_url and uploaded_file:
         # Extract video ID from URL
@@ -264,8 +319,8 @@ def main():
             return
         
         # Get details of the original video
-        st.subheader("Fetching details for your video...")
-        original_video = get_video_details(video_id)
+        with st.spinner("Fetching details for your video..."):
+            original_video = get_video_details(youtube, video_id)
         
         if not original_video:
             st.error("Could not fetch video details. Please check the URL and try again.")
@@ -332,11 +387,12 @@ def main():
             progress_bar = st.progress(0)
             
             video_details_list = []
-            for i, vid in enumerate(df['video_id']):
-                details = get_video_details(vid)
-                if details:
-                    video_details_list.append(details)
-                progress_bar.progress((i + 1) / len(df['video_id']))
+            with st.spinner("Fetching details for videos in CSV... This may take a while."):
+                for i, vid in enumerate(df['video_id']):
+                    details = get_video_details(youtube, vid)
+                    if details:
+                        video_details_list.append(details)
+                    progress_bar.progress((i + 1) / len(df['video_id']))
             
             # Calculate similarities
             st.subheader("Calculating similarities...")
