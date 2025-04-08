@@ -59,7 +59,11 @@ st.markdown("""
         font-size: 0.9rem;
     }
     tr:hover {
-        background-color: #f5f5f5;
+        background-color: #e3f2fd;
+        color: #000;
+    }
+    tr:hover td {
+        color: #000;
     }
     .streamlit-expanderHeader {
         font-size: 0.9rem;
@@ -170,24 +174,23 @@ def calculate_text_similarity(text1, text2):
 
 # Function to calculate similarity between two sets of tags
 def calculate_tag_similarity(tags1, tags2):
-    """Calculate similarity between two sets of tags."""
+    """Calculate similarity between two sets of tags.
+    
+    Compare whole tags (not individual words) as requested by the user.
+    Tags are considered matching only if they are exactly the same.
+    """
     if not tags1 or not tags2:
         return 0, []
     
-    # Preprocess tags
-    processed_tags1 = []
-    for tag in tags1:
-        processed_tags1.extend(preprocess_text(tag))
+    # Convert tags to lowercase for case-insensitive comparison
+    tags1_lower = [tag.lower().strip() for tag in tags1]
+    tags2_lower = [tag.lower().strip() for tag in tags2]
     
-    processed_tags2 = []
-    for tag in tags2:
-        processed_tags2.extend(preprocess_text(tag))
-    
-    # Find common tags
-    common_tags = set(processed_tags1).intersection(set(processed_tags2))
+    # Find common tags (exact matches only)
+    common_tags = set(tags1_lower).intersection(set(tags2_lower))
     
     # Calculate similarity percentage
-    similarity_percentage = len(common_tags) / max(len(set(processed_tags1)), len(set(processed_tags2))) * 100
+    similarity_percentage = len(common_tags) / max(len(tags1_lower), len(tags2_lower)) * 100
     
     return similarity_percentage, list(common_tags)
 
