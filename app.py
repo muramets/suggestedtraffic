@@ -514,6 +514,18 @@ def main():
                 
                 results.append(result)
             
+            # Function to highlight matching words
+            def highlight_matching_words(text, common_words):
+                if not text or not common_words:
+                    return text
+                
+                for word in common_words:
+                    # Case-insensitive replacement with green highlight
+                    pattern = re.compile(re.escape(word), re.IGNORECASE)
+                    text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
+                
+                return text
+            
             # Sort results by overall similarity (descending)
             results.sort(key=lambda x: x['overall_similarity'], reverse=True)
             
@@ -581,17 +593,6 @@ def main():
             
             table_df = pd.DataFrame(table_data)
             
-            # Function to highlight matching words
-            def highlight_matching_words(text, common_words):
-                if not text or not common_words:
-                    return text
-                
-                for word in common_words:
-                    # Case-insensitive replacement with green highlight
-                    pattern = re.compile(re.escape(word), re.IGNORECASE)
-                    text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
-                
-                return text
             
             # Display results in a horizontally scrollable table with headers
             st.header("Analysis Results")
@@ -718,39 +719,7 @@ def main():
             st.markdown('</div>', unsafe_allow_html=True)
             
             
-            # Display details for the selected video
-            if selected_video_index is not None:
-                result = results[selected_video_index]
-                
-                st.subheader(f"Details for: {result['title']}")
-                
-                # Display metrics in columns
-                cols = st.columns(4)
-                cols[0].metric("Overall Similarity", f"{result['overall_similarity']:.2f}%")
-                cols[1].metric("Title Similarity", f"{result['title_similarity']:.2f}%")
-                cols[2].metric("Description Similarity", f"{result['description_similarity']:.2f}%")
-                cols[3].metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
-                
-                # Highlight matching words in description
-                highlighted_description = highlight_matching_words(
-                    result['description'], 
-                    result['common_description_words']
-                )
-                
-                # Highlight matching tags
-                highlighted_tags = []
-                for tag in result['tags']:
-                    if tag.lower().strip() in [t.lower().strip() for t in result['common_tags']]:
-                        highlighted_tags.append(f'<span style="color: green; font-weight: bold;">{tag}</span>')
-                    else:
-                        highlighted_tags.append(tag)
-                
-                # Create expandable sections for description and tags
-                with st.expander("Description"):
-                    st.markdown(highlighted_description, unsafe_allow_html=True)
-                
-                with st.expander("Tags"):
-                    st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
+            # Remove duplicate video details section
             
         except Exception as e:
             st.error(f"Error processing CSV file: {e}")
