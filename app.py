@@ -488,9 +488,17 @@ def main():
                 unsafe_allow_html=True
             )
             
-            # Convert DataFrame to HTML with clickable links
-            html_table = table_df.to_html(escape=False, index=False)
-            st.markdown(html_table, unsafe_allow_html=True)
+            # Function to highlight matching words
+            def highlight_matching_words(text, common_words):
+                if not text or not common_words:
+                    return text
+                
+                for word in common_words:
+                    # Case-insensitive replacement with green highlight
+                    pattern = re.compile(re.escape(word), re.IGNORECASE)
+                    text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
+                
+                return text
             
             # Add a selectbox to choose a video to view details
             video_titles = [result['title'] for result in results]
@@ -513,18 +521,6 @@ def main():
                 cols[2].metric("Description Similarity", f"{result['description_similarity']:.2f}%")
                 cols[3].metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
                 
-                # Function to highlight matching words
-                def highlight_matching_words(text, common_words):
-                    if not text or not common_words:
-                        return text
-                    
-                    for word in common_words:
-                        # Case-insensitive replacement with green highlight
-                        pattern = re.compile(re.escape(word), re.IGNORECASE)
-                        text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
-                    
-                    return text
-                
                 # Highlight matching words in description
                 highlighted_description = highlight_matching_words(
                     result['description'], 
@@ -545,6 +541,10 @@ def main():
                 
                 with st.expander("Tags"):
                     st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
+            
+            # Convert DataFrame to HTML with clickable links and buttons
+            html_table = table_df.to_html(escape=False, index=False)
+            st.markdown(html_table, unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"Error processing CSV file: {e}")
