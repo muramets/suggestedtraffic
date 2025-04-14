@@ -441,7 +441,40 @@ def main():
             df['impressions'] = df.iloc[:, 3]
             df['ctr'] = df.iloc[:, 4]
             df['views'] = df.iloc[:, 5]
-            df['avg_view_duration'] = df.iloc[:, 6]
+            
+            # Parse avg_view_duration correctly - convert time format to seconds
+            avg_duration_col = df.iloc[:, 6]
+            def convert_duration_to_seconds(duration_str):
+                if pd.isna(duration_str) or duration_str == '':
+                    return 0
+                
+                duration_str = str(duration_str).strip()
+                # Handle MM:SS format
+                if ':' in duration_str:
+                    parts = duration_str.split(':')
+                    if len(parts) == 2:  # MM:SS
+                        try:
+                            minutes = int(parts[0])
+                            seconds = int(parts[1])
+                            return minutes * 60 + seconds
+                        except ValueError:
+                            return 0
+                    elif len(parts) == 3:  # HH:MM:SS
+                        try:
+                            hours = int(parts[0])
+                            minutes = int(parts[1])
+                            seconds = int(parts[2])
+                            return hours * 3600 + minutes * 60 + seconds
+                        except ValueError:
+                            return 0
+                # Try to convert to float if it's just a number
+                try:
+                    return float(duration_str)
+                except ValueError:
+                    return 0
+                    
+            df['avg_view_duration_seconds'] = avg_duration_col.apply(convert_duration_to_seconds)
+            df['avg_view_duration'] = avg_duration_col  # Keep original formatted string
             df['watch_time'] = df.iloc[:, 7]
             
             # Filter out rows with invalid video IDs
@@ -507,6 +540,7 @@ def main():
                     'ctr': csv_row['ctr'],
                     'views': csv_row['views'],
                     'avg_view_duration': csv_row['avg_view_duration'],
+                    'avg_view_duration_seconds': csv_row['avg_view_duration_seconds'],
                     'watch_time': csv_row['watch_time']
                 }
                 
@@ -705,7 +739,7 @@ def main():
                         format="%d",
                         width="small",
                     ),
-                    "Avg View Duration": st.column_config.NumberColumn(
+                    "Avg View Duration": st.column_config.TextColumn(
                         "Avg View Duration",
                         width="medium",
                     ),
