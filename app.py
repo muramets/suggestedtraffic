@@ -646,11 +646,15 @@ def main():
             # Prepare DataFrame for display with proper data types for sorting
             display_df = table_df.copy()
             
-            # Convert numeric columns to proper numeric types for sorting
+            # Add debug output to see raw CSV data
+            st.write("### Original CSV duration format:")
+            st.write(f"Sample of avg_view_duration raw values: {list(df['avg_view_duration'][:5])}")
+            
+            # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
             numeric_columns = [
                 'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
                 'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
-                'Avg View Duration', 'Watch Time (hours)'
+                'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
             ]
             
             for col in numeric_columns:
@@ -679,11 +683,11 @@ def main():
             # Add Video Link as the last column
             display_df['Video Link'] = [result['url'] for result in results]
             
-            # Convert numeric columns to proper numeric types for sorting
+            # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
             numeric_columns = [
                 'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
                 'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
-                'Avg View Duration', 'Watch Time (hours)'
+                'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
             ]
             
             for col in numeric_columns:
