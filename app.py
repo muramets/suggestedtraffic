@@ -825,28 +825,53 @@ def main():
                     st.markdown('</div>', unsafe_allow_html=True)
 
                     # --- Таблица "Избранное" ---
-                    # Формируем fav_df из ordered_results и st.session_state.favorites
+                    # Используем edited_df для определения текущих избранных
                     fav_rows = []
-                    for r in ordered_results:
-                        if st.session_state.favorites.get(r['id'], False):
-                            row = {
-                                "Title": r['title'],
-                                "Overall Similarity (%)": f"{r['overall_similarity']:.2f}",
-                                "Tag Similarity (%)": f"{r['tag_similarity']:.2f}",
-                                "Title Similarity (%)": f"{r['title_similarity']:.2f}",
-                                "Description Similarity (%)": f"{r['description_similarity']:.2f}",
-                                "Impressions": r['impressions'],
-                                "CTR (%)": r['ctr'],
-                                "Views": r['views'],
-                                "Avg View Duration": r['avg_view_duration'],
-                                "Watch Time (hours)": r['watch_time'],
-                                "Video Link": r['url'],
-                                "Избранное": True,
-                                "Common Tags": ", ".join(r['common_tags'][:5]) + ("..." if len(r['common_tags']) > 5 else ""),
-                                "Common Title Words": ", ".join(r['common_title_words'][:5]) + ("..." if len(r['common_title_words']) > 5 else ""),
-                                "Common Description Words": ", ".join(r['common_description_words'][:5]) + ("..." if len(r['common_description_words']) > 5 else ""),
-                            }
-                            fav_rows.append(row)
+                    if 'main_data_editor' in st.session_state:
+                        # edited_df содержит текущее состояние чекбоксов и порядок строк
+                        edited_data = st.session_state["main_data_editor"].get("data", [])
+                        for row in edited_data:
+                            if row.get("Избранное", False):
+                                # Найти соответствующий result по Title (или лучше по Video Link/id)
+                                # Предпочтительно по id, но если нет - по Title
+                                video_id = None
+                                # Найти по Video Link
+                                if "Video Link" in row:
+                                    # Извлечь id из ссылки
+                                    match = re.search(r"v=([a-zA-Z0-9_-]+)", row["Video Link"])
+                                    if match:
+                                        video_id = match.group(1)
+                                # Если не нашли, ищем по Title
+                                result = None
+                                if video_id:
+                                    for r in results:
+                                        if r["id"] == video_id:
+                                            result = r
+                                            break
+                                if not result:
+                                    # fallback по Title
+                                    for r in results:
+                                        if r["title"] == row["Title"]:
+                                            result = r
+                                            break
+                                if result:
+                                    fav_rows.append({
+                                        "Title": result['title'],
+                                        "Overall Similarity (%)": f"{result['overall_similarity']:.2f}",
+                                        "Tag Similarity (%)": f"{result['tag_similarity']:.2f}",
+                                        "Title Similarity (%)": f"{result['title_similarity']:.2f}",
+                                        "Description Similarity (%)": f"{result['description_similarity']:.2f}",
+                                        "Impressions": result['impressions'],
+                                        "CTR (%)": result['ctr'],
+                                        "Views": result['views'],
+                                        "Avg View Duration": result['avg_view_duration'],
+                                        "Watch Time (hours)": result['watch_time'],
+                                        "Video Link": result['url'],
+                                        "Избранное": True,
+                                        "Common Tags": ", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else ""),
+                                        "Common Title Words": ", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else ""),
+                                        "Common Description Words": ", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else ""),
+                                    })
                     if fav_rows:
                         fav_df = pd.DataFrame(fav_rows)
                         st.subheader("Избранные видео")
