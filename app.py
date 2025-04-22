@@ -724,13 +724,16 @@ def main():
                             else:
                                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
 
-                    # --- Добавляем чекбоксы "Избранное" через data_editor ---
+                    # --- Состояния для порядка и чекбоксов ---
                     if 'favorites' not in st.session_state:
                         st.session_state.favorites = {}
+                    if 'editor_order' not in st.session_state or len(st.session_state.editor_order) != len(results):
+                        st.session_state.editor_order = list(range(len(results)))
 
-                    # Сформировать DataFrame для отображения
+                    # --- Формируем display_df в порядке editor_order ---
+                    ordered_results = [results[i] for i in st.session_state.editor_order]
                     display_df = pd.DataFrame()
-                    display_df['Title'] = [result['title'] for result in results]
+                    display_df['Title'] = [r['title'] for r in ordered_results]
                     for col in [
                         'Overall Similarity (%)', 'Tag Similarity (%)', 'Common Tags',
                         'Title Similarity (%)', 'Common Title Words', 'Description Similarity (%)',
@@ -738,57 +741,51 @@ def main():
                         'Avg View Duration', 'Watch Time (hours)', 'Video Link'
                     ]:
                         if col == 'Video Link':
-                            display_df[col] = [result['url'] for result in results]
+                            display_df[col] = [r['url'] for r in ordered_results]
                         elif col == 'Overall Similarity (%)':
-                            display_df[col] = [f"{result['overall_similarity']:.2f}" for result in results]
+                            display_df[col] = [f"{r['overall_similarity']:.2f}" for r in ordered_results]
                         elif col == 'Tag Similarity (%)':
-                            display_df[col] = [f"{result['tag_similarity']:.2f}" for result in results]
+                            display_df[col] = [f"{r['tag_similarity']:.2f}" for r in ordered_results]
                         elif col == 'Title Similarity (%)':
-                            display_df[col] = [f"{result['title_similarity']:.2f}" for result in results]
+                            display_df[col] = [f"{r['title_similarity']:.2f}" for r in ordered_results]
                         elif col == 'Description Similarity (%)':
-                            display_df[col] = [f"{result['description_similarity']:.2f}" for result in results]
+                            display_df[col] = [f"{r['description_similarity']:.2f}" for r in ordered_results]
                         elif col == 'Impressions':
-                            display_df[col] = [result['impressions'] for result in results]
+                            display_df[col] = [r['impressions'] for r in ordered_results]
                         elif col == 'CTR (%)':
-                            display_df[col] = [result['ctr'] for result in results]
+                            display_df[col] = [r['ctr'] for r in ordered_results]
                         elif col == 'Views':
-                            display_df[col] = [result['views'] for result in results]
+                            display_df[col] = [r['views'] for r in ordered_results]
                         elif col == 'Avg View Duration':
-                            display_df[col] = [result['avg_view_duration'] for result in results]
+                            display_df[col] = [r['avg_view_duration'] for r in ordered_results]
                         elif col == 'Watch Time (hours)':
-                            display_df[col] = [result['watch_time'] for result in results]
+                            display_df[col] = [r['watch_time'] for r in ordered_results]
                         elif col == 'Common Tags':
-                            display_df[col] = [", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else "") for result in results]
+                            display_df[col] = [", ".join(r['common_tags'][:5]) + ("..." if len(r['common_tags']) > 5 else "") for r in ordered_results]
                         elif col == 'Common Title Words':
-                            display_df[col] = [", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else "") for result in results]
+                            display_df[col] = [", ".join(r['common_title_words'][:5]) + ("..." if len(r['common_title_words']) > 5 else "") for r in ordered_results]
                         elif col == 'Common Description Words':
-                            display_df[col] = [", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else "") for result in results]
-
-                    # Добавить столбец "Избранное" из session_state
+                            display_df[col] = [", ".join(r['common_description_words'][:5]) + ("..." if len(r['common_description_words']) > 5 else "") for r in ordered_results]
                     display_df['Избранное'] = [
-                        st.session_state.favorites.get(result['id'], False)
-                        for result in results
+                        st.session_state.favorites.get(r['id'], False)
+                        for r in ordered_results
                     ]
 
-                    # --- Сохраняем порядок и сортировку таблицы ---
-                    # Используем session_state для хранения сортировки и порядка строк
-                    if 'editor_sort' not in st.session_state:
-                        st.session_state.editor_sort = None
-                    if 'editor_order' not in st.session_state:
-                        st.session_state.editor_order = list(range(len(display_df)))
+                    # --- Callback для обновления порядка и чекбоксов ---
+                    def on_editor_change():
+                        editor_state = st.session_state["main_data_editor"]
+                        # Сохраняем порядок строк
+                        st.session_state.editor_order = editor_state.get("row_indices", list(range(len(ordered_results))))
+                        # Сохраняем чекбоксы
+                        data = editor_state.get("data", [])
+                        for idx, row in enumerate(data):
+                            # Получаем id видео по текущему порядку
+                            video_id = ordered_results[idx]['id']
+                            st.session_state.favorites[video_id] = row.get('Избранное', False)
 
-                    # Применяем сохранённый порядок строк
-                    display_df = display_df.iloc[st.session_state.editor_order].reset_index(drop=True)
-
-                    # --- Определяем callback-функцию для обновления session_state.favorites ---
-                    def update_favorites(video_id, checked):
-                        st.session_state.favorites[video_id] = checked
-
-                    # Показываем только data_editor с чекбоксами (кликабельные)
                     st.markdown(
                         """
                         <style>
-                        /* Увеличить ширину столбца "Избранное" и не обрезать текст */
                         [data-testid="stDataFrame"] th:nth-child(15) div {
                             white-space: normal !important;
                             min-width: 110px !important;
@@ -823,23 +820,9 @@ def main():
                             "Avg View Duration", "Watch Time (hours)", "Video Link"
                         ],
                         key="main_data_editor",
-                        # on_change=update_favorites # Удаляем on_change отсюда
+                        on_change=on_editor_change
                     )
                     st.markdown('</div>', unsafe_allow_html=True)
-
-                    # --- Сохраняем порядок и сортировку после редактирования ---
-                    # Получаем новый порядок строк после сортировки пользователем
-                    # (Streamlit >=1.29 поддерживает edited_rows_order в st.session_state)
-                    if "main_data_editor" in st.session_state:
-                        # Получаем индексы строк в исходном DataFrame после сортировки
-                        order = st.session_state["main_data_editor"].get("row_indices", list(range(len(display_df))))
-                        st.session_state.editor_order = order
-
-                    # Обновляем session_state.favorites по изменённым чекбоксам
-                    for idx, result in enumerate(results):
-                        # st.session_state.favorites[result['id']] = bool(edited_df.loc[idx, 'Избранное']) # Переносим в callback
-                        if edited_df.loc[idx, 'Избранное'] != st.session_state.favorites.get(result['id'], False):
-                            update_favorites(result['id'], edited_df.loc[idx, 'Избранное'])
 
                     # --- Таблица "Избранное" ---
                     favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
