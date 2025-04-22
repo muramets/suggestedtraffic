@@ -141,8 +141,6 @@ def extract_id_from_csv_format(id_string):
         return match.group(1)
     return None
 
-# No content to replace - removing the duplicate function
-
 # Function to preprocess text with support for Russian and English
 def preprocess_text(text):
     """Tokenize and preprocess text for comparison with support for Russian and English."""
@@ -319,10 +317,51 @@ def get_video_details(youtube, video_id):
             else:
                 return None
 
+# Кэшируем функцию для получения информации о видео из API
+@st.cache_data(ttl=3600)  # Кэшируем на 1 час
+def fetch_video_details_for_list(youtube, video_ids):
+    """Fetch details for multiple videos and cache the results."""
+    video_details_list = []
+    progress_bar = st.progress(0)
+    for i, vid in enumerate(video_ids):
+        details = get_video_details(youtube, vid)
+        if details:
+            video_details_list.append(details)
+        progress_bar.progress((i + 1) / len(video_ids))
+    return video_details_list
+
+# Function to convert duration string to seconds
+def convert_duration_to_seconds(duration_str):
+    if pd.isna(duration_str) or duration_str == '':
+        return 0
+    
+    duration_str = str(duration_str).strip()
+    # Handle MM:SS format
+    if ':' in duration_str:
+        parts = duration_str.split(':')
+        if len(parts) == 2:  # MM:SS
+            try:
+                minutes = int(parts[0])
+                seconds = int(parts[1])
+                return minutes * 60 + seconds
+            except ValueError:
+                return 0
+        elif len(parts) == 3:  # HH:MM:SS
+            try:
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                seconds = int(parts[2])
+                return hours * 3600 + minutes * 60 + seconds
+            except ValueError:
+                return 0
+    # Try to convert to float if it's just a number
+    try:
+        return float(duration_str)
+    except ValueError:
+        return 0
+
 # Main function
 def main():
-    # Remove duplicate set_page_config as it's already called at the top of the file
-    
     # Create sidebar for API key input
     with st.sidebar:
         st.header("YouTube API Configuration")
@@ -379,320 +418,302 @@ def main():
             return
         # Other errors are ok - might be quota or permission issues that won't affect basic functionality
     
+    # Модифицируем основную логику для использования session_state
+    if 'processed_results' not in st.session_state:
+        st.session_state.processed_results = None
+    
     if video_url and uploaded_file:
         # Extract video ID from URL
         video_id = extract_video_id(video_url)
         
         if not video_id:
             st.error("Invalid YouTube URL. Please enter a valid URL.")
-            return
-        
-        # Get details of the original video
-        with st.spinner("Fetching details for your video..."):
-            original_video = get_video_details(youtube, video_id)
-        
-        if not original_video:
-            st.error("Could not fetch video details. Please check the URL and try again.")
-            return
-        
-        # Display original video details
-        st.subheader("Your Video Details")
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            st.image(original_video['thumbnail'], width=200)
-        
-        with col2:
-            st.write(f"**Title:** {original_video['title']}")
-            st.write(f"**Channel:** {original_video['channel_title']}")
+        else:
+            # Get details of the original video only once
+            if 'original_video' not in st.session_state:
+                with st.spinner("Fetching details for your video..."):
+                    st.session_state.original_video = get_video_details(youtube, video_id)
             
-            with st.expander("Video Description"):
-                st.write(original_video['description'])
+            original_video = st.session_state.original_video
             
-            with st.expander("Video Tags"):
-                if original_video['tags']:
-                    st.write(", ".join(original_video['tags']))
-                else:
-                    st.write("No tags found for this video.")
-        
-        # Process CSV file
-        st.subheader("Processing CSV data...")
-        
-        try:
-            df = pd.read_csv(uploaded_file)
-            
-            # Skip the first two rows (header and total)
-            df = df.iloc[1:].reset_index(drop=True)
-            
-            # Extract video IDs from the first column
-            video_ids = []
-            for id_string in df.iloc[:, 0]:
-                vid = extract_id_from_csv_format(str(id_string))
-                if vid:
-                    video_ids.append(vid)
-                else:
-                    video_ids.append(None)
-            
-            # Add video IDs to dataframe
-            df['video_id'] = video_ids
-            
-            # Extract other relevant columns
-            df['video_title'] = df.iloc[:, 2]
-            df['impressions'] = df.iloc[:, 3]
-            df['ctr'] = df.iloc[:, 4]
-            df['views'] = df.iloc[:, 5]
-            
-            # Parse avg_view_duration correctly - convert time format to seconds
-            avg_duration_col = df.iloc[:, 6]
-            def convert_duration_to_seconds(duration_str):
-                if pd.isna(duration_str) or duration_str == '':
-                    return 0
+            if not original_video:
+                st.error("Could not fetch video details. Please check the URL and try again.")
+            else:
+                # Display original video details
+                st.subheader("Your Video Details")
+                col1, col2 = st.columns([1, 3])
                 
-                duration_str = str(duration_str).strip()
-                # Handle MM:SS format
-                if ':' in duration_str:
-                    parts = duration_str.split(':')
-                    if len(parts) == 2:  # MM:SS
-                        try:
-                            minutes = int(parts[0])
-                            seconds = int(parts[1])
-                            return minutes * 60 + seconds
-                        except ValueError:
-                            return 0
-                    elif len(parts) == 3:  # HH:MM:SS
-                        try:
-                            hours = int(parts[0])
-                            minutes = int(parts[1])
-                            seconds = int(parts[2])
-                            return hours * 3600 + minutes * 60 + seconds
-                        except ValueError:
-                            return 0
-                # Try to convert to float if it's just a number
-                try:
-                    return float(duration_str)
-                except ValueError:
-                    return 0
+                with col1:
+                    st.image(original_video['thumbnail'], width=200)
+                
+                with col2:
+                    st.write(f"**Title:** {original_video['title']}")
+                    st.write(f"**Channel:** {original_video['channel_title']}")
                     
-            df['avg_view_duration_seconds'] = avg_duration_col.apply(convert_duration_to_seconds)
-            df['avg_view_duration'] = avg_duration_col  # Keep original formatted string
-            df['watch_time'] = df.iloc[:, 7]
-            
-            # Filter out rows with invalid video IDs
-            df = df[df['video_id'].notna()].reset_index(drop=True)
-            
-            if df.empty:
-                st.error("No valid video IDs found in the CSV file.")
-                return
-            
-            # Fetch details for each video in the CSV
-            st.subheader("Fetching details for videos in CSV...")
-            progress_bar = st.progress(0)
-            
-            video_details_list = []
-            with st.spinner("Fetching details for videos in CSV... This may take a while."):
-                for i, vid in enumerate(df['video_id']):
-                    details = get_video_details(youtube, vid)
-                    if details:
-                        video_details_list.append(details)
-                    progress_bar.progress((i + 1) / len(df['video_id']))
-            
-            # Calculate similarities
-            st.subheader("Calculating similarities...")
-            
-            results = []
-            for i, details in enumerate(video_details_list):
-                # Calculate title similarity
-                title_sim, common_title_words = calculate_text_similarity(
-                    original_video['title'], details['title']
-                )
+                    with st.expander("Video Description"):
+                        st.write(original_video['description'])
+                    
+                    with st.expander("Video Tags"):
+                        if original_video['tags']:
+                            st.write(", ".join(original_video['tags']))
+                        else:
+                            st.write("No tags found for this video.")
                 
-                # Calculate description similarity
-                desc_sim, common_desc_words = calculate_text_similarity(
-                    original_video['description'], details['description']
-                )
+                # Process CSV file only once
+                if st.session_state.processed_results is None:
+                    st.subheader("Processing CSV data...")
+                    
+                    try:
+                        df = pd.read_csv(uploaded_file)
+                        
+                        # Skip the first two rows (header and total)
+                        df = df.iloc[1:].reset_index(drop=True)
+                        
+                        # Extract video IDs from the first column
+                        video_ids = []
+                        for id_string in df.iloc[:, 0]:
+                            vid = extract_id_from_csv_format(str(id_string))
+                            if vid:
+                                video_ids.append(vid)
+                            else:
+                                video_ids.append(None)
+                        
+                        # Add video IDs to dataframe
+                        df['video_id'] = video_ids
+                        
+                        # Extract other relevant columns
+                        df['video_title'] = df.iloc[:, 2]
+                        df['impressions'] = df.iloc[:, 3]
+                        df['ctr'] = df.iloc[:, 4]
+                        df['views'] = df.iloc[:, 5]
+                        
+                        # Parse avg_view_duration correctly - convert time format to seconds
+                        avg_duration_col = df.iloc[:, 6]
+                        df['avg_view_duration_seconds'] = avg_duration_col.apply(convert_duration_to_seconds)
+                        df['avg_view_duration'] = avg_duration_col  # Keep original formatted string
+                        df['watch_time'] = df.iloc[:, 7]
+                        
+                        # Filter out rows with invalid video IDs
+                        df = df[df['video_id'].notna()].reset_index(drop=True)
+                        
+                        if df.empty:
+                            st.error("No valid video IDs found in the CSV file.")
+                        else:
+                            # Fetch details for each video in the CSV
+                            st.subheader("Fetching details for videos in CSV...")
+                            
+                            with st.spinner("Fetching details for videos in CSV... This may take a while."):
+                                video_details_list = fetch_video_details_for_list(youtube, df['video_id'].tolist())
+                            
+                            # Calculate similarities
+                            st.subheader("Calculating similarities...")
+                            
+                            results = []
+                            for details in video_details_list:
+                                # Calculate title similarity
+                                title_sim, common_title_words = calculate_text_similarity(
+                                    original_video['title'], details['title']
+                                )
+                                
+                                # Calculate description similarity
+                                desc_sim, common_desc_words = calculate_text_similarity(
+                                    original_video['description'], details['description']
+                                )
+                                
+                                # Calculate tag similarity
+                                tag_sim, common_tags = calculate_tag_similarity(
+                                    original_video['tags'], details['tags']
+                                )
+                                
+                                # Calculate overall similarity
+                                overall_sim = calculate_overall_similarity(title_sim, desc_sim, tag_sim)
+                                
+                                # Get CSV data for this video
+                                csv_row = df[df['video_id'] == details['id']].iloc[0]
+                                
+                                # Create result dictionary
+                                result = {
+                                    'id': details['id'],
+                                    'title': details['title'],
+                                    'url': f"https://www.youtube.com/watch?v={details['id']}",
+                                    'overall_similarity': overall_sim,
+                                    'title_similarity': title_sim,
+                                    'common_title_words': common_title_words,
+                                    'description_similarity': desc_sim,
+                                    'common_description_words': common_desc_words,
+                                    'tag_similarity': tag_sim,
+                                    'common_tags': common_tags,
+                                    'description': details['description'],
+                                    'tags': details['tags'],
+                                    'impressions': csv_row['impressions'],
+                                    'ctr': csv_row['ctr'],
+                                    'views': csv_row['views'],
+                                    'avg_view_duration': csv_row['avg_view_duration'],
+                                    'avg_view_duration_seconds': csv_row['avg_view_duration_seconds'],
+                                    'watch_time': csv_row['watch_time']
+                                }
+                                
+                                results.append(result)
+                            
+                            # Sort results by overall similarity (descending)
+                            results.sort(key=lambda x: x['overall_similarity'], reverse=True)
+                            
+                            # Save processed results to session state
+                            st.session_state.processed_results = results
+                    
+                    except Exception as e:
+                        st.error(f"Error processing CSV file: {e}")
                 
-                # Calculate tag similarity
-                tag_sim, common_tags = calculate_tag_similarity(
-                    original_video['tags'], details['tags']
-                )
-                
-                # Calculate overall similarity
-                overall_sim = calculate_overall_similarity(title_sim, desc_sim, tag_sim)
-                
-                # Get CSV data for this video
-                csv_row = df[df['video_id'] == details['id']].iloc[0]
-                
-                # Create result dictionary
-                result = {
-                    'id': details['id'],
-                    'title': details['title'],
-                    'url': f"https://www.youtube.com/watch?v={details['id']}",
-                    'overall_similarity': overall_sim,
-                    'title_similarity': title_sim,
-                    'common_title_words': common_title_words,
-                    'description_similarity': desc_sim,
-                    'common_description_words': common_desc_words,
-                    'tag_similarity': tag_sim,
-                    'common_tags': common_tags,
-                    'description': details['description'],
-                    'tags': details['tags'],
-                    'impressions': csv_row['impressions'],
-                    'ctr': csv_row['ctr'],
-                    'views': csv_row['views'],
-                    'avg_view_duration': csv_row['avg_view_duration'],
-                    'avg_view_duration_seconds': csv_row['avg_view_duration_seconds'],
-                    'watch_time': csv_row['watch_time']
-                }
-                
-                results.append(result)
-            
-            # Function to highlight matching words
-            def highlight_matching_words(text, common_words):
-                if not text or not common_words:
-                    return text
-                
-                for word in common_words:
-                    # Case-insensitive replacement with green highlight
-                    pattern = re.compile(re.escape(word), re.IGNORECASE)
-                    text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
-                
-                return text
-            
-            # Sort results by overall similarity (descending)
-            results.sort(key=lambda x: x['overall_similarity'], reverse=True)
-            
-            # Add a selectbox to choose a video to view details
-            st.subheader("Video Details")
-            video_titles = [result['title'] for result in results]
-            selected_video_index = st.selectbox(
-                "Select a video to view details:",
-                range(len(video_titles)),
-                format_func=lambda i: video_titles[i]
-            )
-            
-            # Display details for the selected video
-            if selected_video_index is not None:
-                result = results[selected_video_index]
-                
-                st.subheader(f"Details for: {result['title']}")
-                
-                # Display metrics in columns
-                cols = st.columns(4)
-                cols[0].metric("Overall Similarity", f"{result['overall_similarity']:.2f}%")
-                cols[1].metric("Title Similarity", f"{result['title_similarity']:.2f}%")
-                cols[2].metric("Description Similarity", f"{result['description_similarity']:.2f}%")
-                cols[3].metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
-                
-                # Highlight matching words in description
-                highlighted_description = highlight_matching_words(
-                    result['description'], 
-                    result['common_description_words']
-                )
-                
-                # Highlight matching tags
-                highlighted_tags = []
-                for tag in result['tags']:
-                    if tag.lower().strip() in [t.lower().strip() for t in result['common_tags']]:
-                        highlighted_tags.append(f'<span style="color: green; font-weight: bold;">{tag}</span>')
-                    else:
-                        highlighted_tags.append(tag)
-                
-                # Create expandable sections for description and tags
-                with st.expander("Description"):
-                    st.markdown(highlighted_description, unsafe_allow_html=True)
-                
-                with st.expander("Tags"):
-                    st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
-            
-            # Create a DataFrame for the horizontally scrollable table
-            table_data = []
-            for result in results:
-                table_data.append({
-                    'Title': f"<a href='{result['url']}' target='_blank'>{result['title']}</a>",  # Make title clickable with HTML
-                    'Overall Similarity (%)': f"{result['overall_similarity']:.2f}",
-                    'Tag Similarity (%)': f"{result['tag_similarity']:.2f}",
-                    'Common Tags': ", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else ""),
-                    'Title Similarity (%)': f"{result['title_similarity']:.2f}",
-                    'Common Title Words': ", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else ""),
-                    'Description Similarity (%)': f"{result['description_similarity']:.2f}",
-                    'Common Description Words': ", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else ""),
-                    'Impressions': result['impressions'],
-                    'CTR (%)': result['ctr'],
-                    'Views': result['views'],
-                    'Avg View Duration': result['avg_view_duration'],
-                    'Watch Time (hours)': result['watch_time']
-                })
-            
-            table_df = pd.DataFrame(table_data)
-            
-            
-            # Display results in a horizontally scrollable table with headers
-            st.header("Analysis Results")
-            st.write("Videos sorted by overall similarity to your video (highest to lowest)")
-            st.subheader("Analysis Table (Click column headers to sort)")
-            
-            st.markdown(
-                """
-                <style>
-                .stDataFrame {
-                    width: 100%;
-                    overflow-x: auto;
-                }
-                </style>
-                """, 
-                unsafe_allow_html=True
-            )
-            
-            # Prepare DataFrame for display with proper data types for sorting
-            display_df = table_df.copy()
-            
-            # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
-            numeric_columns = [
-                'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
-                'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
-                'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
-            ]
-            
-            for col in numeric_columns:
-                if col in display_df.columns:
-                    # Extract numeric values from string columns (remove % and other non-numeric characters)
-                    if display_df[col].dtype == 'object':
-                        display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
-                    else:
-                        display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
-            
-            # Create a container with fixed height for scrolling with fixed header
-            st.markdown('<div class="table-container">', unsafe_allow_html=True)
-            
-            # Create a DataFrame for display with proper data types for sorting
-            # and add a Video Link column with Title as the first column
-            display_df = pd.DataFrame()
-            
-            # Add Title as the first column
-            display_df['Title'] = [result['title'] for result in results]
-            
-            # Add all other columns except the HTML Title
-            for col in table_df.columns:
-                if col != 'Title':
-                    display_df[col] = table_df[col]
-            
-            # Add Video Link as the last column
-            display_df['Video Link'] = [result['url'] for result in results]
-            
-            # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
-            numeric_columns = [
-                'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
-                'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
-                'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
-            ]
-            
-            for col in numeric_columns:
-                if col in display_df.columns:
-                    # Extract numeric values from string columns (remove % and other non-numeric characters)
-                    if display_df[col].dtype == 'object':
-                        display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
-                    else:
-                        display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+                # Now display the results from session state
+                results = st.session_state.processed_results
+                if results:
+                    # Function to highlight matching words
+                    def highlight_matching_words(text, common_words):
+                        if not text or not common_words:
+                            return text
+                        
+                        for word in common_words:
+                            # Case-insensitive replacement with green highlight
+                            pattern = re.compile(re.escape(word), re.IGNORECASE)
+                            text = pattern.sub(f'<span style="color: green; font-weight: bold;">{word}</span>', text)
+                        
+                        return text
+                    
+                    # Add a selectbox to choose a video to view details
+                    st.subheader("Video Details")
+                    video_titles = [result['title'] for result in results]
+                    
+                    # Используем ключ для стабильности
+                    selected_video_index = st.selectbox(
+                        "Select a video to view details:",
+                        range(len(video_titles)),
+                        format_func=lambda i: video_titles[i],
+                        key="video_selector"
+                    )
+                    
+                    # Display details for the selected video
+                    if selected_video_index is not None:
+                        result = results[selected_video_index]
+                        
+                        st.subheader(f"Details for: {result['title']}")
+                        
+                        # Display metrics in columns
+                        cols = st.columns(4)
+                        cols[0].metric("Overall Similarity", f"{result['overall_similarity']:.2f}%")
+                        cols[1].metric("Title Similarity", f"{result['title_similarity']:.2f}%")
+                        cols[2].metric("Description Similarity", f"{result['description_similarity']:.2f}%")
+                        cols[3].metric("Tag Similarity", f"{result['tag_similarity']:.2f}%")
+                        
+                        # Highlight matching words in description
+                        highlighted_description = highlight_matching_words(
+                            result['description'], 
+                            result['common_description_words']
+                        )
+                        
+                        # Highlight matching tags
+                        highlighted_tags = []
+                        for tag in result['tags']:
+                            if tag.lower().strip() in [t.lower().strip() for t in result['common_tags']]:
+                                highlighted_tags.append(f'<span style="color: green; font-weight: bold;">{tag}</span>')
+                            else:
+                                highlighted_tags.append(tag)
+                        
+                        # Create expandable sections for description and tags
+                        with st.expander("Description"):
+                            st.markdown(highlighted_description, unsafe_allow_html=True)
+                        
+                        with st.expander("Tags"):
+                            st.markdown(', '.join(highlighted_tags), unsafe_allow_html=True)
+                    
+                    # Create a DataFrame for the horizontally scrollable table
+                    table_data = []
+                    for result in results:
+                        table_data.append({
+                            'Title': f"<a href='{result['url']}' target='_blank'>{result['title']}</a>",  # Make title clickable with HTML
+                            'Overall Similarity (%)': f"{result['overall_similarity']:.2f}",
+                            'Tag Similarity (%)': f"{result['tag_similarity']:.2f}",
+                            'Common Tags': ", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else ""),
+                            'Title Similarity (%)': f"{result['title_similarity']:.2f}",
+                            'Common Title Words': ", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else ""),
+                            'Description Similarity (%)': f"{result['description_similarity']:.2f}",
+                            'Common Description Words': ", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else ""),
+                            'Impressions': result['impressions'],
+                            'CTR (%)': result['ctr'],
+                            'Views': result['views'],
+                            'Avg View Duration': result['avg_view_duration'],
+                            'Watch Time (hours)': result['watch_time']
+                        })
+                    
+                    table_df = pd.DataFrame(table_data)
+                    
+                    
+                    # Display results in a horizontally scrollable table with headers
+                    st.header("Analysis Results")
+                    st.write("Videos sorted by overall similarity to your video (highest to lowest)")
+                    st.subheader("Analysis Table (Click column headers to sort)")
+                    
+                    st.markdown(
+                        """
+                        <style>
+                        .stDataFrame {
+                            width: 100%;
+                            overflow-x: auto;
+                        }
+                        </style>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Prepare DataFrame for display with proper data types for sorting
+                    display_df = table_df.copy()
+                    
+                    # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
+                    numeric_columns = [
+                        'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
+                        'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
+                        'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
+                    ]
+                    
+                    for col in numeric_columns:
+                        if col in display_df.columns:
+                            # Extract numeric values from string columns (remove % and other non-numeric characters)
+                            if display_df[col].dtype == 'object':
+                                display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
+                            else:
+                                display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+                    
+                    # Create a container with fixed height for scrolling with fixed header
+                    st.markdown('<div class="table-container">', unsafe_allow_html=True)
+                    
+                    # Create a DataFrame for display with proper data types for sorting
+                    # and add a Video Link column with Title as the first column
+                    display_df = pd.DataFrame()
+                    
+                    # Add Title as the first column
+                    display_df['Title'] = [result['title'] for result in results]
+                    
+                    # Add all other columns except the HTML Title
+                    for col in table_df.columns:
+                        if col != 'Title':
+                            display_df[col] = table_df[col]
+                    
+                    # Add Video Link as the last column
+                    display_df['Video Link'] = [result['url'] for result in results]
+                    
+                    # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
+                    numeric_columns = [
+                        'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
+                        'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
+                        'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
+                    ]
+                    
+                    for col in numeric_columns:
+                        if col in display_df.columns:
+                            # Extract numeric values from string columns (remove % and other non-numeric characters)
+                            if display_df[col].dtype == 'object':
+                                display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
+                            else:
+                                display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
             
             # Display the DataFrame with sortable columns
             st.dataframe(
