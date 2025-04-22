@@ -453,7 +453,7 @@ def main():
                         st.write(original_video['description'])
                     
                     with st.expander("Video Tags"):
-                        if original_video['tags']:
+                        if (original_video['tags']):
                             st.write(", ".join(original_video['tags']))
                         else:
                             st.write("No tags found for this video.")
