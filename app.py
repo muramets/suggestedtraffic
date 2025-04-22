@@ -724,26 +724,13 @@ def main():
                             else:
                                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
 
-                    # --- Добавляем чекбоксы "Избранное" ---
-                    # Сохраняем состояние чекбоксов в session_state
+                    # --- Добавляем чекбоксы "Избранное" через data_editor ---
                     if 'favorites' not in st.session_state:
                         st.session_state.favorites = {}
 
-                    # Обновляем состояние чекбоксов для новых видео
-                    for result in results:
-                        vid = result['id']
-                        if vid not in st.session_state.favorites:
-                            st.session_state.favorites[vid] = False
-
-                    # Создаём таблицу с чекбоксами
-                    st.header("Analysis Results")
-                    st.write("Videos sorted by overall similarity to your video (highest to lowest)")
-                    st.subheader("Analysis Table (Click column headers to sort)")
-
-                    # Формируем DataFrame для отображения с чекбоксами
+                    # Сформировать DataFrame для отображения
                     display_df = pd.DataFrame()
                     display_df['Title'] = [result['title'] for result in results]
-                    # ...добавляем остальные столбцы...
                     for col in [
                         'Overall Similarity (%)', 'Tag Similarity (%)', 'Common Tags',
                         'Title Similarity (%)', 'Common Title Words', 'Description Similarity (%)',
@@ -777,23 +764,15 @@ def main():
                         elif col == 'Common Description Words':
                             display_df[col] = [", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else "") for result in results]
 
-                    # Добавляем столбец чекбоксов
+                    # Добавить столбец "Избранное" из session_state
                     display_df['Избранное'] = [
-                        st.checkbox(
-                            "",
-                            value=st.session_state.favorites[result['id']],
-                            key=f"favorite_{result['id']}"
-                        )
+                        st.session_state.favorites.get(result['id'], False)
                         for result in results
                     ]
 
-                    # Обновляем session_state по чекбоксам
-                    for idx, result in enumerate(results):
-                        st.session_state.favorites[result['id']] = display_df.loc[idx, 'Избранное']
-
-                    # Отображаем основную таблицу
+                    # Показываем только data_editor с чекбоксами (кликабельные)
                     st.markdown('<div class="table-container">', unsafe_allow_html=True)
-                    st.dataframe(
+                    edited_df = st.data_editor(
                         display_df,
                         use_container_width=True,
                         hide_index=True,
@@ -810,16 +789,25 @@ def main():
                             "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
                             "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
                             "Избранное": st.column_config.CheckboxColumn("Избранное", width="small"),
-                        }
+                        },
+                        disabled=[
+                            "Title", "Overall Similarity (%)", "Tag Similarity (%)", "Common Tags",
+                            "Title Similarity (%)", "Common Title Words", "Description Similarity (%)",
+                            "Common Description Words", "Impressions", "CTR (%)", "Views",
+                            "Avg View Duration", "Watch Time (hours)", "Video Link"
+                        ]
                     )
                     st.markdown('</div>', unsafe_allow_html=True)
+
+                    # Обновляем session_state.favorites по изменённым чекбоксам
+                    for idx, result in enumerate(results):
+                        st.session_state.favorites[result['id']] = bool(edited_df.loc[idx, 'Избранное'])
 
                     # --- Таблица "Избранное" ---
                     favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
                     if favorite_ids:
                         st.subheader("Избранные видео")
-                        fav_results = [result for result in results if result['id'] in favorite_ids]
-                        fav_df = display_df[display_df['Избранное']]
+                        fav_df = edited_df[edited_df['Избранное']]
                         st.markdown('<div class="table-container">', unsafe_allow_html=True)
                         st.dataframe(
                             fav_df,
