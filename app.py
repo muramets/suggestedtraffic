@@ -780,6 +780,10 @@ def main():
                     # Применяем сохранённый порядок строк
                     display_df = display_df.iloc[st.session_state.editor_order].reset_index(drop=True)
 
+                    # --- Определяем callback-функцию для обновления session_state.favorites ---
+                    def update_favorites(video_id, checked):
+                        st.session_state.favorites[video_id] = checked
+
                     # Показываем только data_editor с чекбоксами (кликабельные)
                     st.markdown(
                         """
@@ -818,7 +822,8 @@ def main():
                             "Common Description Words", "Impressions", "CTR (%)", "Views",
                             "Avg View Duration", "Watch Time (hours)", "Video Link"
                         ],
-                        key="main_data_editor"
+                        key="main_data_editor",
+                        # on_change=update_favorites # Удаляем on_change отсюда
                     )
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -832,7 +837,9 @@ def main():
 
                     # Обновляем session_state.favorites по изменённым чекбоксам
                     for idx, result in enumerate(results):
-                        st.session_state.favorites[result['id']] = bool(edited_df.loc[idx, 'Избранное'])
+                        # st.session_state.favorites[result['id']] = bool(edited_df.loc[idx, 'Избранное']) # Переносим в callback
+                        if edited_df.loc[idx, 'Избранное'] != st.session_state.favorites.get(result['id'], False):
+                            update_favorites(result['id'], edited_df.loc[idx, 'Избранное'])
 
                     # --- Таблица "Избранное" ---
                     favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
