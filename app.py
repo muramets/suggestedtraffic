@@ -825,56 +825,10 @@ def main():
                     st.markdown('</div>', unsafe_allow_html=True)
 
                     # --- Таблица "Избранное" ---
-                    # Используем edited_df для определения текущих избранных
-                    fav_rows = []
-                    if 'main_data_editor' in st.session_state:
-                        # edited_df содержит текущее состояние чекбоксов и порядок строк
-                        edited_data = st.session_state["main_data_editor"].get("data", [])
-                        for row in edited_data:
-                            if row.get("Избранное", False):
-                                # Найти соответствующий result по Title (или лучше по Video Link/id)
-                                # Предпочтительно по id, но если нет - по Title
-                                video_id = None
-                                # Найти по Video Link
-                                if "Video Link" in row:
-                                    # Извлечь id из ссылки
-                                    match = re.search(r"v=([a-zA-Z0-9_-]+)", row["Video Link"])
-                                    if match:
-                                        video_id = match.group(1)
-                                # Если не нашли, ищем по Title
-                                result = None
-                                if video_id:
-                                    for r in results:
-                                        if r["id"] == video_id:
-                                            result = r
-                                            break
-                                if not result:
-                                    # fallback по Title
-                                    for r in results:
-                                        if r["title"] == row["Title"]:
-                                            result = r
-                                            break
-                                if result:
-                                    fav_rows.append({
-                                        "Title": result['title'],
-                                        "Overall Similarity (%)": f"{result['overall_similarity']:.2f}",
-                                        "Tag Similarity (%)": f"{result['tag_similarity']:.2f}",
-                                        "Title Similarity (%)": f"{result['title_similarity']:.2f}",
-                                        "Description Similarity (%)": f"{result['description_similarity']:.2f}",
-                                        "Impressions": result['impressions'],
-                                        "CTR (%)": result['ctr'],
-                                        "Views": result['views'],
-                                        "Avg View Duration": result['avg_view_duration'],
-                                        "Watch Time (hours)": result['watch_time'],
-                                        "Video Link": result['url'],
-                                        "Избранное": True,
-                                        "Common Tags": ", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else ""),
-                                        "Common Title Words": ", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else ""),
-                                        "Common Description Words": ", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else ""),
-                                    })
-                    if fav_rows:
-                        fav_df = pd.DataFrame(fav_rows)
+                    favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
+                    if favorite_ids:
                         st.subheader("Избранные видео")
+                        fav_df = edited_df[edited_df['Избранное']]
                         st.markdown('<div class="table-container">', unsafe_allow_html=True)
                         st.dataframe(
                             fav_df,
@@ -893,9 +847,6 @@ def main():
                                 "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
                                 "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
                                 "Избранное": st.column_config.CheckboxColumn("Избранное", width="large"),
-                                "Common Tags": st.column_config.TextColumn("Common Tags"),
-                                "Common Title Words": st.column_config.TextColumn("Common Title Words"),
-                                "Common Description Words": st.column_config.TextColumn("Common Description Words"),
                             }
                         )
                         st.markdown('</div>', unsafe_allow_html=True)
