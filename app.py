@@ -716,6 +716,7 @@ def main():
                                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
             
            # Display the DataFrame with sortable columns
+ # ...existing code...
                     st.dataframe(
                         display_df,
                         use_container_width=True,
@@ -779,8 +780,6 @@ def main():
                     # Close the container
                     st.markdown('</div>', unsafe_allow_html=True)
                 
+                # except должен быть на том же уровне, что и try
                 except Exception as e:
                     st.error(f"Error processing CSV file: {e}")
-
-if __name__ == "__main__":
-    main()
