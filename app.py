@@ -770,8 +770,30 @@ def main():
                         for result in results
                     ]
 
+                    # --- Сохраняем порядок и сортировку таблицы ---
+                    # Используем session_state для хранения сортировки и порядка строк
+                    if 'editor_sort' not in st.session_state:
+                        st.session_state.editor_sort = None
+                    if 'editor_order' not in st.session_state:
+                        st.session_state.editor_order = list(range(len(display_df)))
+
+                    # Применяем сохранённый порядок строк
+                    display_df = display_df.iloc[st.session_state.editor_order].reset_index(drop=True)
+
                     # Показываем только data_editor с чекбоксами (кликабельные)
-                    st.markdown('<div class="table-container">', unsafe_allow_html=True)
+                    st.markdown(
+                        """
+                        <style>
+                        /* Увеличить ширину столбца "Избранное" и не обрезать текст */
+                        [data-testid="stDataFrame"] th:nth-child(15) div {
+                            white-space: normal !important;
+                            min-width: 110px !important;
+                            max-width: 160px !important;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True
+                    )
                     edited_df = st.data_editor(
                         display_df,
                         use_container_width=True,
@@ -788,16 +810,25 @@ def main():
                             "Avg View Duration": st.column_config.TextColumn("Avg View Duration", width="medium"),
                             "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
                             "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
-                            "Избранное": st.column_config.CheckboxColumn("Избранное", width="small"),
+                            "Избранное": st.column_config.CheckboxColumn("Избранное", width="large"),
                         },
                         disabled=[
                             "Title", "Overall Similarity (%)", "Tag Similarity (%)", "Common Tags",
                             "Title Similarity (%)", "Common Title Words", "Description Similarity (%)",
                             "Common Description Words", "Impressions", "CTR (%)", "Views",
                             "Avg View Duration", "Watch Time (hours)", "Video Link"
-                        ]
+                        ],
+                        key="main_data_editor"
                     )
                     st.markdown('</div>', unsafe_allow_html=True)
+
+                    # --- Сохраняем порядок и сортировку после редактирования ---
+                    # Получаем новый порядок строк после сортировки пользователем
+                    # (Streamlit >=1.29 поддерживает edited_rows_order в st.session_state)
+                    if "main_data_editor" in st.session_state:
+                        # Получаем индексы строк в исходном DataFrame после сортировки
+                        order = st.session_state["main_data_editor"].get("row_indices", list(range(len(display_df))))
+                        st.session_state.editor_order = order
 
                     # Обновляем session_state.favorites по изменённым чекбоксам
                     for idx, result in enumerate(results):
@@ -825,7 +856,7 @@ def main():
                                 "Avg View Duration": st.column_config.TextColumn("Avg View Duration", width="medium"),
                                 "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
                                 "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
-                                "Избранное": st.column_config.CheckboxColumn("Избранное", width="small"),
+                                "Избранное": st.column_config.CheckboxColumn("Избранное", width="large"),
                             }
                         )
                         st.markdown('</div>', unsafe_allow_html=True)
