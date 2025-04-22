@@ -322,12 +322,11 @@ def get_video_details(youtube, video_id):
 def fetch_video_details_for_list(_youtube, video_ids):
     """Fetch details for multiple videos and cache the results."""
     video_details_list = []
-    progress_bar = st.progress(0)
-    for i, vid in enumerate(video_ids):
+    # Удаляем прогресс-бар из этой функции
+    for vid in video_ids:
         details = get_video_details(_youtube, vid)
         if details:
             video_details_list.append(details)
-        progress_bar.progress((i + 1) / len(video_ids))
     return video_details_list
 
 # Function to convert duration string to seconds
@@ -501,9 +500,19 @@ def main():
                         else:
                             # Fetch details for each video in the CSV
                             st.subheader("Fetching details for videos in CSV...")
-                            
-                            with st.spinner("Fetching details for videos in CSV... This may take a while."):
-                                video_details_list = fetch_video_details_for_list(_youtube=youtube, video_ids=df['video_id'].tolist())
+
+                            # Создаём прогресс-бар здесь
+                            progress_bar = st.progress(0, text="Fetching details for videos in CSV...")
+
+                            video_ids = df['video_id'].tolist()
+                            video_details_list = []
+                            total = len(video_ids)
+                            for i, vid in enumerate(video_ids):
+                                details = get_video_details(youtube, vid)
+                                if details:
+                                    video_details_list.append(details)
+                                progress_bar.progress((i + 1) / total, text=f"Fetching video {i+1} of {total}...")
+                            progress_bar.empty()
                             
                             # Calculate similarities
                             st.subheader("Calculating similarities...")
