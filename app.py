@@ -715,76 +715,72 @@ def main():
                             else:
                                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
             
-            # Display the DataFrame with sortable columns
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Title": st.column_config.Column(
-                        "Title",
-                        width="large",
-                    ),
-                    "Overall Similarity (%)": st.column_config.NumberColumn(
-                        "Overall Similarity (%)",
-                        format="%.2f%%",
-                        width="medium",
-                    ),
-                    "Tag Similarity (%)": st.column_config.NumberColumn(
-                        "Tag Similarity (%)",
-                        format="%.2f%%",
-                        width="medium",
-                    ),
-                    "Title Similarity (%)": st.column_config.NumberColumn(
-                        "Title Similarity (%)",
-                        format="%.2f%%",
-                        width="medium",
-                    ),
-                    "Description Similarity (%)": st.column_config.NumberColumn(
-                        "Description Similarity (%)",
-                        format="%.2f%%",
-                        width="medium",
-                    ),
-                    "Impressions": st.column_config.NumberColumn(
-                        "Impressions",
-                        format="%d",
-                        width="medium",
-                    ),
-                    "CTR (%)": st.column_config.NumberColumn(
-                        "CTR (%)",
-                        format="%.2f%%",
-                        width="small",
-                    ),
-                    "Views": st.column_config.NumberColumn(
-                        "Views",
-                        format="%d",
-                        width="small",
-                    ),
-                    "Avg View Duration": st.column_config.TextColumn(
-                        "Avg View Duration",
-                        width="medium",
-                    ),
-                    "Watch Time (hours)": st.column_config.NumberColumn(
-                        "Watch Time (hours)",
-                        format="%.2f",
-                        width="medium",
-                    ),
-                    "Video Link": st.column_config.LinkColumn(
-                        "Video Link",
-                        width="small",
-                    ),
-                }
-            )
-            
-            # Close the container
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            
-            # Remove duplicate video details section
-            
-        except Exception as e:
-            st.error(f"Error processing CSV file: {e}")
-            return
+           # Display the DataFrame with sortable columns
+                    st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "Title": st.column_config.Column(
+                                "Title",
+                                width="large",
+                            ),
+                            "Overall Similarity (%)": st.column_config.NumberColumn(
+                                "Overall Similarity (%)",
+                                format="%.2f%%",
+                                width="medium",
+                            ),
+                            "Tag Similarity (%)": st.column_config.NumberColumn(
+                                "Tag Similarity (%)",
+                                format="%.2f%%",
+                                width="medium",
+                            ),
+                            "Title Similarity (%)": st.column_config.NumberColumn(
+                                "Title Similarity (%)",
+                                format="%.2f%%",
+                                width="medium",
+                            ),
+                            "Description Similarity (%)": st.column_config.NumberColumn(
+                                "Description Similarity (%)",
+                                format="%.2f%%",
+                                width="medium",
+                            ),
+                            "Impressions": st.column_config.NumberColumn(
+                                "Impressions",
+                                format="%d",
+                                width="medium",
+                            ),
+                            "CTR (%)": st.column_config.NumberColumn(
+                                "CTR (%)",
+                                format="%.2f%%",
+                                width="small",
+                            ),
+                            "Views": st.column_config.NumberColumn(
+                                "Views",
+                                format="%d",
+                                width="small",
+                            ),
+                            "Avg View Duration": st.column_config.TextColumn(
+                                "Avg View Duration",
+                                width="medium",
+                            ),
+                            "Watch Time (hours)": st.column_config.NumberColumn(
+                                "Watch Time (hours)",
+                                format="%.2f",
+                                width="medium",
+                            ),
+                            "Video Link": st.column_config.LinkColumn(
+                                "Video Link",
+                                width="small",
+                            ),
+                        }
+                    )
+                    
+                    # Close the container
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                except Exception as e:
+                    st.error(f"Error processing CSV file: {e}")
 
 if __name__ == "__main__":
     main()
