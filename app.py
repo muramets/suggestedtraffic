@@ -724,69 +724,123 @@ def main():
                             else:
                                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
 
-                    # Display the DataFrame with sortable columns
+                    # --- Добавляем чекбоксы "Избранное" ---
+                    # Сохраняем состояние чекбоксов в session_state
+                    if 'favorites' not in st.session_state:
+                        st.session_state.favorites = {}
+
+                    # Обновляем состояние чекбоксов для новых видео
+                    for result in results:
+                        vid = result['id']
+                        if vid not in st.session_state.favorites:
+                            st.session_state.favorites[vid] = False
+
+                    # Создаём таблицу с чекбоксами
+                    st.header("Analysis Results")
+                    st.write("Videos sorted by overall similarity to your video (highest to lowest)")
+                    st.subheader("Analysis Table (Click column headers to sort)")
+
+                    # Формируем DataFrame для отображения с чекбоксами
+                    display_df = pd.DataFrame()
+                    display_df['Title'] = [result['title'] for result in results]
+                    # ...добавляем остальные столбцы...
+                    for col in [
+                        'Overall Similarity (%)', 'Tag Similarity (%)', 'Common Tags',
+                        'Title Similarity (%)', 'Common Title Words', 'Description Similarity (%)',
+                        'Common Description Words', 'Impressions', 'CTR (%)', 'Views',
+                        'Avg View Duration', 'Watch Time (hours)', 'Video Link'
+                    ]:
+                        if col == 'Video Link':
+                            display_df[col] = [result['url'] for result in results]
+                        elif col == 'Overall Similarity (%)':
+                            display_df[col] = [f"{result['overall_similarity']:.2f}" for result in results]
+                        elif col == 'Tag Similarity (%)':
+                            display_df[col] = [f"{result['tag_similarity']:.2f}" for result in results]
+                        elif col == 'Title Similarity (%)':
+                            display_df[col] = [f"{result['title_similarity']:.2f}" for result in results]
+                        elif col == 'Description Similarity (%)':
+                            display_df[col] = [f"{result['description_similarity']:.2f}" for result in results]
+                        elif col == 'Impressions':
+                            display_df[col] = [result['impressions'] for result in results]
+                        elif col == 'CTR (%)':
+                            display_df[col] = [result['ctr'] for result in results]
+                        elif col == 'Views':
+                            display_df[col] = [result['views'] for result in results]
+                        elif col == 'Avg View Duration':
+                            display_df[col] = [result['avg_view_duration'] for result in results]
+                        elif col == 'Watch Time (hours)':
+                            display_df[col] = [result['watch_time'] for result in results]
+                        elif col == 'Common Tags':
+                            display_df[col] = [", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else "") for result in results]
+                        elif col == 'Common Title Words':
+                            display_df[col] = [", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else "") for result in results]
+                        elif col == 'Common Description Words':
+                            display_df[col] = [", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else "") for result in results]
+
+                    # Добавляем столбец чекбоксов
+                    display_df['Избранное'] = [
+                        st.checkbox(
+                            "",
+                            value=st.session_state.favorites[result['id']],
+                            key=f"favorite_{result['id']}"
+                        )
+                        for result in results
+                    ]
+
+                    # Обновляем session_state по чекбоксам
+                    for idx, result in enumerate(results):
+                        st.session_state.favorites[result['id']] = display_df.loc[idx, 'Избранное']
+
+                    # Отображаем основную таблицу
+                    st.markdown('<div class="table-container">', unsafe_allow_html=True)
                     st.dataframe(
                         display_df,
                         use_container_width=True,
                         hide_index=True,
                         column_config={
-                            "Title": st.column_config.Column(
-                                "Title",
-                                width="large",
-                            ),
-                            "Overall Similarity (%)": st.column_config.NumberColumn(
-                                "Overall Similarity (%)",
-                                format="%.2f%%",
-                                width="medium",
-                            ),
-                            "Tag Similarity (%)": st.column_config.NumberColumn(
-                                "Tag Similarity (%)",
-                                format="%.2f%%",
-                                width="medium",
-                            ),
-                            "Title Similarity (%)": st.column_config.NumberColumn(
-                                "Title Similarity (%)",
-                                format="%.2f%%",
-                                width="medium",
-                            ),
-                            "Description Similarity (%)": st.column_config.NumberColumn(
-                                "Description Similarity (%)",
-                                format="%.2f%%",
-                                width="medium",
-                            ),
-                            "Impressions": st.column_config.NumberColumn(
-                                "Impressions",
-                                format="%d",
-                                width="medium",
-                            ),
-                            "CTR (%)": st.column_config.NumberColumn(
-                                "CTR (%)",
-                                format="%.2f%%",
-                                width="small",
-                            ),
-                            "Views": st.column_config.NumberColumn(
-                                "Views",
-                                format="%d",
-                                width="small",
-                            ),
-                            "Avg View Duration": st.column_config.TextColumn(
-                                "Avg View Duration",
-                                width="medium",
-                            ),
-                            "Watch Time (hours)": st.column_config.NumberColumn(
-                                "Watch Time (hours)",
-                                format="%.2f",
-                                width="medium",
-                            ),
-                            "Video Link": st.column_config.LinkColumn(
-                                "Video Link",
-                                width="small",
-                            ),
+                            "Title": st.column_config.Column("Title", width="large"),
+                            "Overall Similarity (%)": st.column_config.NumberColumn("Overall Similarity (%)", format="%.2f%%", width="medium"),
+                            "Tag Similarity (%)": st.column_config.NumberColumn("Tag Similarity (%)", format="%.2f%%", width="medium"),
+                            "Title Similarity (%)": st.column_config.NumberColumn("Title Similarity (%)", format="%.2f%%", width="medium"),
+                            "Description Similarity (%)": st.column_config.NumberColumn("Description Similarity (%)", format="%.2f%%", width="medium"),
+                            "Impressions": st.column_config.NumberColumn("Impressions", format="%d", width="medium"),
+                            "CTR (%)": st.column_config.NumberColumn("CTR (%)", format="%.2f%%", width="small"),
+                            "Views": st.column_config.NumberColumn("Views", format="%d", width="small"),
+                            "Avg View Duration": st.column_config.TextColumn("Avg View Duration", width="medium"),
+                            "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
+                            "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
+                            "Избранное": st.column_config.CheckboxColumn("Избранное", width="small"),
                         }
                     )
-
-                    # Close the container
                     st.markdown('</div>', unsafe_allow_html=True)
+
+                    # --- Таблица "Избранное" ---
+                    favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
+                    if favorite_ids:
+                        st.subheader("Избранные видео")
+                        fav_results = [result for result in results if result['id'] in favorite_ids]
+                        fav_df = display_df[display_df['Избранное']]
+                        st.markdown('<div class="table-container">', unsafe_allow_html=True)
+                        st.dataframe(
+                            fav_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Title": st.column_config.Column("Title", width="large"),
+                                "Overall Similarity (%)": st.column_config.NumberColumn("Overall Similarity (%)", format="%.2f%%", width="medium"),
+                                "Tag Similarity (%)": st.column_config.NumberColumn("Tag Similarity (%)", format="%.2f%%", width="medium"),
+                                "Title Similarity (%)": st.column_config.NumberColumn("Title Similarity (%)", format="%.2f%%", width="medium"),
+                                "Description Similarity (%)": st.column_config.NumberColumn("Description Similarity (%)", format="%.2f%%", width="medium"),
+                                "Impressions": st.column_config.NumberColumn("Impressions", format="%d", width="medium"),
+                                "CTR (%)": st.column_config.NumberColumn("CTR (%)", format="%.2f%%", width="small"),
+                                "Views": st.column_config.NumberColumn("Views", format="%d", width="small"),
+                                "Avg View Duration": st.column_config.TextColumn("Avg View Duration", width="medium"),
+                                "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
+                                "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
+                                "Избранное": st.column_config.CheckboxColumn("Избранное", width="small"),
+                            }
+                        )
+                        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
