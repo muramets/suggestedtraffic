@@ -828,28 +828,38 @@ def main():
                     favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
                     if favorite_ids:
                         st.subheader("Избранные видео")
-                        fav_df = edited_df[edited_df['Избранное']]
-                        st.markdown('<div class="table-container">', unsafe_allow_html=True)
-                        st.dataframe(
-                            fav_df,
-                            use_container_width=True,
-                            hide_index=True,
-                            column_config={
-                                "Title": st.column_config.Column("Title", width="large"),
-                                "Overall Similarity (%)": st.column_config.NumberColumn("Overall Similarity (%)", format="%.2f%%", width="medium"),
-                                "Tag Similarity (%)": st.column_config.NumberColumn("Tag Similarity (%)", format="%.2f%%", width="medium"),
-                                "Title Similarity (%)": st.column_config.NumberColumn("Title Similarity (%)", format="%.2f%%", width="medium"),
-                                "Description Similarity (%)": st.column_config.NumberColumn("Description Similarity (%)", format="%.2f%%", width="medium"),
-                                "Impressions": st.column_config.NumberColumn("Impressions", format="%d", width="medium"),
-                                "CTR (%)": st.column_config.NumberColumn("CTR (%)", format="%.2f%%", width="small"),
-                                "Views": st.column_config.NumberColumn("Views", format="%d", width="small"),
-                                "Avg View Duration": st.column_config.TextColumn("Avg View Duration", width="medium"),
-                                "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
-                                "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
-                                "Избранное": st.column_config.CheckboxColumn("Избранное", width="large"),
-                            }
-                        )
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        # --- Исправление: убедиться, что столбец 'Избранное' есть и типа bool ---
+                        if 'Избранное' in edited_df.columns:
+                            # Преобразуем к bool (на случай object/float)
+                            edited_df['Избранное'] = edited_df['Избранное'].astype(bool)
+                            fav_df = edited_df[edited_df['Избранное']]
+                        else:
+                            fav_df = pd.DataFrame()
+                        # Если fav_df пустой, но favorite_ids не пустой — показать предупреждение
+                        if fav_df.empty and len(favorite_ids) > 0:
+                            st.warning("Не удалось отобразить таблицу 'Избранные видео'. Проверьте, что столбец 'Избранное' корректно формируется.")
+                        else:
+                            st.markdown('<div class="table-container">', unsafe_allow_html=True)
+                            st.dataframe(
+                                fav_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    "Title": st.column_config.Column("Title", width="large"),
+                                    "Overall Similarity (%)": st.column_config.NumberColumn("Overall Similarity (%)", format="%.2f%%", width="medium"),
+                                    "Tag Similarity (%)": st.column_config.NumberColumn("Tag Similarity (%)", format="%.2f%%", width="medium"),
+                                    "Title Similarity (%)": st.column_config.NumberColumn("Title Similarity (%)", format="%.2f%%", width="medium"),
+                                    "Description Similarity (%)": st.column_config.NumberColumn("Description Similarity (%)", format="%.2f%%", width="medium"),
+                                    "Impressions": st.column_config.NumberColumn("Impressions", format="%d", width="medium"),
+                                    "CTR (%)": st.column_config.NumberColumn("CTR (%)", format="%.2f%%", width="small"),
+                                    "Views": st.column_config.NumberColumn("Views", format="%d", width="small"),
+                                    "Avg View Duration": st.column_config.TextColumn("Avg View Duration", width="medium"),
+                                    "Watch Time (hours)": st.column_config.NumberColumn("Watch Time (hours)", format="%.2f", width="medium"),
+                                    "Video Link": st.column_config.LinkColumn("Video Link", width="small"),
+                                    "Избранное": st.column_config.CheckboxColumn("Избранное", width="large"),
+                                }
+                            )
+                            st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
