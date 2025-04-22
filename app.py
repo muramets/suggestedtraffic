@@ -319,12 +319,12 @@ def get_video_details(youtube, video_id):
 
 # Кэшируем функцию для получения информации о видео из API
 @st.cache_data(ttl=3600)  # Кэшируем на 1 час
-def fetch_video_details_for_list(youtube, video_ids):
+def fetch_video_details_for_list(_youtube, video_ids):
     """Fetch details for multiple videos and cache the results."""
     video_details_list = []
     progress_bar = st.progress(0)
     for i, vid in enumerate(video_ids):
-        details = get_video_details(youtube, vid)
+        details = get_video_details(_youtube, vid)
         if details:
             video_details_list.append(details)
         progress_bar.progress((i + 1) / len(video_ids))
@@ -503,7 +503,7 @@ def main():
                             st.subheader("Fetching details for videos in CSV...")
                             
                             with st.spinner("Fetching details for videos in CSV... This may take a while."):
-                                video_details_list = fetch_video_details_for_list(youtube, df['video_id'].tolist())
+                                video_details_list = fetch_video_details_for_list(_youtube=youtube, video_ids=df['video_id'].tolist())
                             
                             # Calculate similarities
                             st.subheader("Calculating similarities...")
