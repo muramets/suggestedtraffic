@@ -655,6 +655,7 @@ def main():
                     
                     table_df = pd.DataFrame(table_data)
                     
+                    
                     # Display results in a horizontally scrollable table with headers
                     st.header("Analysis Results")
                     st.write("Videos sorted by overall similarity to your video (highest to lowest)")
@@ -690,18 +691,96 @@ def main():
                             else:
                                 display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
                     
-                    # Initialize favorites in session state if not exists
+                    # Create a container with fixed height for scrolling with fixed header
+                    st.markdown('<div class="table-container">', unsafe_allow_html=True)
+                    
+                    # Create a DataFrame for display with proper data types for sorting
+                    # and add a Video Link column with Title as the first column
+                    display_df = pd.DataFrame()
+                    
+                    # Add Title as the first column
+                    display_df['Title'] = [result['title'] for result in results]
+                    
+                    # Add all other columns except the HTML Title
+                    for col in table_df.columns:
+                        if col != 'Title':
+                            display_df[col] = table_df[col]
+                    
+                    # Add Video Link as the last column
+                    display_df['Video Link'] = [result['url'] for result in results]
+                    
+                    # Convert numeric columns to proper numeric types for sorting - exclude Avg View Duration
+                    numeric_columns = [
+                        'Overall Similarity (%)', 'Tag Similarity (%)', 'Title Similarity (%)', 
+                        'Description Similarity (%)', 'Impressions', 'CTR (%)', 'Views', 
+                        'Watch Time (hours)'  # Removed 'Avg View Duration' to preserve time format
+                    ]
+                    
+                    for col in numeric_columns:
+                        if col in display_df.columns:
+                            # Extract numeric values from string columns (remove % and other non-numeric characters)
+                            if display_df[col].dtype == 'object':
+                                display_df[col] = display_df[col].str.extract(r'([\d\.]+)').astype(float)
+                            else:
+                                display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+
+                    # --- Добавляем чекбоксы "Избранное" через data_editor ---
                     if 'favorites' not in st.session_state:
-                        st.session_state.favorites = {result['id']: False for result in results}
-                    
-                    # Add favorites column to DataFrame
-                    display_df['Избранное'] = [st.session_state.favorites.get(result['id'], False) for result in results]
-                    
-                    # Store the current sort state
-                    if 'current_sort' not in st.session_state:
-                        st.session_state.current_sort = None
-                    
-                    # Display the data editor with checkboxes
+                        st.session_state.favorites = {}
+
+                    # Сформировать DataFrame для отображения
+                    display_df = pd.DataFrame()
+                    display_df['Title'] = [result['title'] for result in results]
+                    for col in [
+                        'Overall Similarity (%)', 'Tag Similarity (%)', 'Common Tags',
+                        'Title Similarity (%)', 'Common Title Words', 'Description Similarity (%)',
+                        'Common Description Words', 'Impressions', 'CTR (%)', 'Views',
+                        'Avg View Duration', 'Watch Time (hours)', 'Video Link'
+                    ]:
+                        if col == 'Video Link':
+                            display_df[col] = [result['url'] for result in results]
+                        elif col == 'Overall Similarity (%)':
+                            display_df[col] = [f"{result['overall_similarity']:.2f}" for result in results]
+                        elif col == 'Tag Similarity (%)':
+                            display_df[col] = [f"{result['tag_similarity']:.2f}" for result in results]
+                        elif col == 'Title Similarity (%)':
+                            display_df[col] = [f"{result['title_similarity']:.2f}" for result in results]
+                        elif col == 'Description Similarity (%)':
+                            display_df[col] = [f"{result['description_similarity']:.2f}" for result in results]
+                        elif col == 'Impressions':
+                            display_df[col] = [result['impressions'] for result in results]
+                        elif col == 'CTR (%)':
+                            display_df[col] = [result['ctr'] for result in results]
+                        elif col == 'Views':
+                            display_df[col] = [result['views'] for result in results]
+                        elif col == 'Avg View Duration':
+                            display_df[col] = [result['avg_view_duration'] for result in results]
+                        elif col == 'Watch Time (hours)':
+                            display_df[col] = [result['watch_time'] for result in results]
+                        elif col == 'Common Tags':
+                            display_df[col] = [", ".join(result['common_tags'][:5]) + ("..." if len(result['common_tags']) > 5 else "") for result in results]
+                        elif col == 'Common Title Words':
+                            display_df[col] = [", ".join(result['common_title_words'][:5]) + ("..." if len(result['common_title_words']) > 5 else "") for result in results]
+                        elif col == 'Common Description Words':
+                            display_df[col] = [", ".join(result['common_description_words'][:5]) + ("..." if len(result['common_description_words']) > 5 else "") for result in results]
+
+                    # Добавить столбец "Избранное" из session_state
+                    display_df['Избранное'] = [
+                        st.session_state.favorites.get(result['id'], False)
+                        for result in results
+                    ]
+
+                    # --- Сохраняем порядок и сортировку таблицы ---
+                    # Используем session_state для хранения сортировки и порядка строк
+                    if 'editor_sort' not in st.session_state:
+                        st.session_state.editor_sort = None
+                    if 'editor_order' not in st.session_state:
+                        st.session_state.editor_order = list(range(len(display_df)))
+
+                    # Применяем сохранённый порядок строк
+                    display_df = display_df.iloc[st.session_state.editor_order].reset_index(drop=True)
+
+                    # Показываем только data_editor с чекбоксами (кликабельные)
                     st.markdown(
                         """
                         <style>
@@ -715,11 +794,6 @@ def main():
                         """,
                         unsafe_allow_html=True
                     )
-                    
-                    # Create a container with fixed height for scrolling
-                    st.markdown('<div class="table-container">', unsafe_allow_html=True)
-                    
-                    # Display the data editor
                     edited_df = st.data_editor(
                         display_df,
                         use_container_width=True,
@@ -746,27 +820,25 @@ def main():
                         ],
                         key="main_data_editor"
                     )
-                    
                     st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    # Update favorites in session state when checkboxes are changed
+
+                    # --- Сохраняем порядок и сортировку после редактирования ---
+                    # Получаем новый порядок строк после сортировки пользователем
+                    # (Streamlit >=1.29 поддерживает edited_rows_order в st.session_state)
                     if "main_data_editor" in st.session_state:
-                        # Get the current state of checkboxes
-                        checkbox_states = edited_df['Избранное'].tolist()
-                        
-                        # Update session state
-                        for idx, result in enumerate(results):
-                            st.session_state.favorites[result['id']] = checkbox_states[idx]
-                    
-                    # Display favorites table if any favorites exist
+                        # Получаем индексы строк в исходном DataFrame после сортировки
+                        order = st.session_state["main_data_editor"].get("row_indices", list(range(len(display_df))))
+                        st.session_state.editor_order = order
+
+                    # Обновляем session_state.favorites по изменённым чекбоксам
+                    for idx, result in enumerate(results):
+                        st.session_state.favorites[result['id']] = bool(edited_df.loc[idx, 'Избранное'])
+
+                    # --- Таблица "Избранное" ---
                     favorite_ids = [vid for vid, checked in st.session_state.favorites.items() if checked]
                     if favorite_ids:
                         st.subheader("Избранные видео")
-                        
-                        # Create DataFrame with only favorite videos
-                        fav_df = display_df[display_df['Избранное']]
-                        
-                        # Display the favorites table
+                        fav_df = edited_df[edited_df['Избранное']]
                         st.markdown('<div class="table-container">', unsafe_allow_html=True)
                         st.dataframe(
                             fav_df,
