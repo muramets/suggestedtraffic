@@ -779,9 +779,5 @@ def main():
                     # Close the container
                     st.markdown('</div>', unsafe_allow_html=True)
 
-            # except должен быть на том же уровне, что и try
-        except Exception as e:
-            st.error(f"Error processing CSV file: {e}")
-
 if __name__ == "__main__":
     main()
